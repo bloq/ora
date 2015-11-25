@@ -4,6 +4,9 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
+#include <memory>
+#include <cstdint>
+#include <iostream>
 #include <fcntl.h>
 #include <string>
 #include <vector>
@@ -14,6 +17,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <signal.h>
+#include <evhttp.h>
 #include "sandbox.h"
 
 using namespace std;
@@ -50,18 +54,13 @@ static void usage(const char *progname)
 		"Usage: %s [options]\n"
 		"\n"
 		"options:\n"
-		"-E <directory>\t\tAdd to executable hash search path list\n"
-		"-e <hash|pathname>\tLoad specified Moxie executable into address space\n"
-		"-D <directory>\t\tAdd to data hash search path list\n"
-		"-d <file>\t\tLoad data into address space\n"
-		"-o <file>\t\tOutput data to <file>.  \"-\" for stdout\n"
-		"-t\t\t\tEnabling simulator tracing\n"
 		"-g <port>\t\tWait for GDB connection on given port\n"
 		"-p <file>\t\tWrite gprof formatted profile data to <file>\n"
 		,
 		progname);
 }
 
+#if 0
 static void printMemMap(machine &mach)
 {
 	for (unsigned int i = 0; i < mach.memmap.size(); i++) {
@@ -132,6 +131,7 @@ static void addMapDescriptor(machine& mach)
 	// set SR #6 to now-initialized mapdesc start vaddr
 	mach.cpu.asregs.sregs[6] = ar->start;
 }
+#endif
 
 static void gatherOutput(machine& mach, const string& outFilename)
 {
@@ -177,70 +177,13 @@ static void gatherOutput(machine& mach, const string& outFilename)
 	close(fd);
 }
 
-static bool isDir(const char *pathname)
-{
-	struct stat st;
-
-	if (stat(pathname, &st) < 0)
-		return false;
-
-	return S_ISDIR(st.st_mode);
-}
-
-static void sandboxInit(machine& mach, int argc, char **argv,
+static void oraInit(machine& mach, int argc, char **argv,
 			string& outFilename, string& gmonFilename,
 			uint32_t& gdbPort)
 {
-	vector<string> pathExec;
-	vector<string> pathData;
-
-	bool progLoaded = false;
 	int opt;
-	while ((opt = getopt(argc, argv, "E:e:D:d:o:tg:p:")) != -1) {
+	while ((opt = getopt(argc, argv, "g:p:")) != -1) {
 		switch(opt) {
-		case 'E':
-			if (!isDir(optarg)) {
-				fprintf(stderr, "%s not a directory\n", optarg);
-				exit(EXIT_FAILURE);
-			}
-			pathExec.push_back(optarg);
-			break;
-		case 'e':
-			bool rc;
-			if (IsHex(optarg))
-				rc = loadElfHash(mach, optarg, pathExec);
-			else
-				rc = loadElfProgram(mach, optarg);
-			if (!rc) {
-				fprintf(stderr, "ELF load failed for %s\n",
-					optarg);
-				exit(EXIT_FAILURE);
-			}
-			progLoaded = true;
-			break;
-		case 'D':
-			if (!isDir(optarg)) {
-				fprintf(stderr, "%s not a directory\n", optarg);
-				exit(EXIT_FAILURE);
-			}
-			pathData.push_back(optarg);
-			break;
-		case 'd':
-			if (!loadRawData(mach, optarg)) {
-				fprintf(stderr, "Data load failed for %s\n",
-					optarg);
-				exit(EXIT_FAILURE);
-			}
-			break;
-
-		case 'o':
-			outFilename = optarg;
-			break;
-
-		case 't':
-			mach.tracing = true;
-			break;
-
 		case 'g':
 			gdbPort = atoi(optarg);
 			break;
@@ -256,18 +199,6 @@ static void sandboxInit(machine& mach, int argc, char **argv,
 		}
 	}
 
-	if (!progLoaded) {
-		fprintf(stderr, "No Moxie program loaded.\n");
-		usage(argv[0]);
-		exit(EXIT_FAILURE);
-	}
-
-	addStackMem(mach);
-	addMapDescriptor(mach);
-
-	mach.cpu.asregs.regs[PC_REGNO] = mach.startAddr;
-
-	printMemMap(mach);
 }
 
 static char lowNibbleToHex(int nibble)
@@ -558,24 +489,69 @@ static void saveProfileData(machine mach, string gmonFilename)
 	fclose (f);
 }
 
+void rpc_home(evhttp_request *req, void *)
+{
+	auto *OutBuf = evhttp_request_get_output_buffer(req);
+	if (!OutBuf)
+		return;
+	evbuffer_add_printf(OutBuf, "<html><body><center><h1>Hello World!</h1></center></body></html>");
+	evhttp_send_reply(req, HTTP_OK, "", OutBuf);
+};
+
+void rpc_exec(evhttp_request *req, void *)
+{
+	auto *OutBuf = evhttp_request_get_output_buffer(req);
+	if (!OutBuf)
+		return;
+	evbuffer_add_printf(OutBuf, "<html><body><center><h1>Hello World!</h1></center></body></html>");
+	evhttp_send_reply(req, HTTP_OK, "", OutBuf);
+};
+
+void rpc_unknown(evhttp_request *req, void *)
+{
+	auto *OutBuf = evhttp_request_get_output_buffer(req);
+	if (!OutBuf)
+		return;
+	evbuffer_add_printf(OutBuf, "<html><body><center><h1>404 not found</h1></center></body></html>");
+	evhttp_send_error(req, 404, "not found");
+};
+
 int main(int argc, char *argv[])
 {
+	if (!event_init())
+	{
+		std::cerr << "Failed to init libevent." << std::endl;
+		return -1;
+	}
+
+	char const SrvAddress[] = "127.0.0.1";
+	std::uint16_t SrvPort = 12014;
+	std::unique_ptr<evhttp, decltype(&evhttp_free)> Server(evhttp_start(SrvAddress, SrvPort), &evhttp_free);
+	if (!Server)
+	{
+		std::cerr << "Failed to init http server." << std::endl;
+		return -1;
+	}
+
+	evhttp_set_cb(Server.get(), "/", rpc_home, nullptr);
+	evhttp_set_cb(Server.get(), "/exec", rpc_exec, nullptr);
+	evhttp_set_gencb(Server.get(), rpc_unknown, nullptr);
+
 	machine mach;
 	string outFilename, gmonFilename;
 	uint32_t gdbPort = 0;
 
-	sandboxInit(mach, argc, argv, outFilename, gmonFilename, gdbPort);
+	oraInit(mach, argc, argv, outFilename, gmonFilename, gdbPort);
 
 	if (gdbPort)
 		gdb_main_loop(gdbPort, mach);
 	else
 		sim_resume(mach);
 
-	if (mach.cpu.asregs.exception != SIGQUIT) {
-		fprintf(stderr, "Sim exception %d (%s)\n",
-			mach.cpu.asregs.exception,
-			strsignal(mach.cpu.asregs.exception));
-		exit(EXIT_FAILURE);
+	if (event_dispatch() == -1)
+	{
+		std::cerr << "Failed to run message loop." << std::endl;
+		return -1;
 	}
 
 	gatherOutput(mach, outFilename);
@@ -583,7 +559,6 @@ int main(int argc, char *argv[])
 	if (mach.profiling) 
 		saveProfileData(mach, gmonFilename);
 
-	// return $r0, the exit status passed to _exit()
-	return (mach.cpu.asregs.regs[2] & 0xff);
+	return 0;
 }
 
