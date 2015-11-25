@@ -1,4 +1,4 @@
-/* crt0.S -- startup file for moxiebox
+/* crt0.S -- startup file for ora
  * 
  * Copyright (c) 2008, 2009, 2014  Anthony Green
  * Copyright 2014 BitPay, Inc.

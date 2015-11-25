@@ -1,10 +1,10 @@
-AC_INIT([moxiebox], [0.0.3],
-        [http://github.com/jgarzik/moxiebox/])
+AC_INIT([ora], [0.0.3],
+        [http://github.com/bloq/ora/])
 
 AC_PREREQ(2.60)
 AC_CONFIG_SRCDIR([src/sandbox.cc])
 AM_INIT_AUTOMAKE([gnu])
-AC_CONFIG_HEADERS([moxiebox-config.h])
+AC_CONFIG_HEADERS([ora-config.h])
 
 AC_PROG_CXX
 AC_PROG_CC

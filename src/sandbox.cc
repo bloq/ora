@@ -1,4 +1,5 @@
-#include "moxiebox-config.h"
+
+#include "ora-config.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>
