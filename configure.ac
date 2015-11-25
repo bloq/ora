@@ -28,9 +28,12 @@ AC_LANG_PUSH([C++])
 
 AC_CHECK_LIB(elf, elf_getphdrnum, ELF_LIBS=-lelf,AC_MSG_ERROR([Libelf is required to build this package!]))
 AC_CHECK_LIB(crypto, SHA256_Update, CRYPTO_LIBS=-lcrypto,AC_MSG_ERROR([Libcrypto is required to build this package!]))
+AC_CHECK_LIB(event_core, event_base_new, EVENT_LIBS=-levent_core,AC_MSG_ERROR([libevent is required to build this package!]))
+AC_CHECK_LIB(event_extra, evhttp_new, EVENT_LIBS="$EVENT_LIBS -levent_extra",AC_MSG_ERROR([libevent_extra is required to build this package!]))
 
 AC_SUBST(ELF_LIBS)
 AC_SUBST(CRYPTO_LIBS)
+AC_SUBST(EVENT_LIBS)
 AC_SUBST(MOX_AS)
 AC_SUBST(MOX_AR)
 AC_SUBST(MOX_GCC)

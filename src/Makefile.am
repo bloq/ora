@@ -1,5 +1,5 @@
 
-noinst_PROGRAMS = sandbox gen-sum
+noinst_PROGRAMS = sandbox orad gen-sum
 
 noinst_LIBRARIES = libsandbox.a
 
@@ -16,6 +16,14 @@ sandbox_SOURCES = \
 	moxie.cc \
 	sandbox.cc
 sandbox_LDADD = libsandbox.a $(ELF_LIBS) $(CRYPTO_LIBS)
+
+orad_SOURCES = \
+	elf.cc \
+	machine.cc \
+	moxie.h \
+	moxie.cc \
+	orad.cc
+orad_LDADD = libsandbox.a $(ELF_LIBS) $(CRYPTO_LIBS) $(EVENT_LIBS)
 
 gen_sum_SOURCES = gen-sum.cc
 gen_sum_LDADD = libsandbox.a $(CRYPTO_LIBS)
