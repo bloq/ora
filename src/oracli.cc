@@ -277,9 +277,6 @@ main(int argc, char **argv)
 		goto error;
 	}
 
-#ifndef _WIN32
-	/* TODO: Add certificate loading on Windows as well */
-
 	/* Attempt to use the system's trusted root certificates.
 	 * (This path is only valid for Debian-based systems.) */
 	if (1 != SSL_CTX_load_verify_locations(ssl_ctx, crt, NULL)) {
@@ -310,7 +307,6 @@ main(int argc, char **argv)
 	 * "wrapping" OpenSSL's routine, not replacing it. */
 	SSL_CTX_set_cert_verify_callback(ssl_ctx, cert_verify_callback,
 					  (void *) host);
-#endif // not _WIN32
 
 	// Create event base
 	base = event_base_new();
@@ -428,10 +424,6 @@ cleanup:
 	CRYPTO_cleanup_all_ex_data();
 
 	sk_SSL_COMP_free(SSL_COMP_get_compression_methods());
-
-#ifdef _WIN32
-	WSACleanup();
-#endif
 
 	return ret;
 }
