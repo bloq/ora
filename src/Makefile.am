@@ -1,7 +1,7 @@
 
 EXTRA_DIST = oraapi.proto
 
-noinst_PROGRAMS = sandbox orad gen-sum
+noinst_PROGRAMS = sandbox oracli orad gen-sum
 
 noinst_LIBRARIES = libsandbox.a
 
@@ -18,6 +18,11 @@ sandbox_SOURCES = \
 	moxie.cc \
 	sandbox.cc
 sandbox_LDADD = libsandbox.a $(ELF_LIBS) $(CRYPTO_LIBS)
+
+oracli_SOURCES = \
+	oraapi.pb.cc oraapi.pb.h \
+	oracli.cc
+oracli_LDADD = $(CRYPTO_LIBS) $(EVENT_LIBS) $(UNIVALUE_LIBS) $(PROTOBUF_LIBS) $(SSL_LIBS)
 
 orad_SOURCES = \
 	elf.cc \

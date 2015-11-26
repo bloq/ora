@@ -28,8 +28,10 @@ AC_LANG_PUSH([C++])
 
 AC_CHECK_LIB(elf, elf_getphdrnum, ELF_LIBS=-lelf,AC_MSG_ERROR([Libelf is required to build this package!]))
 AC_CHECK_LIB(crypto, SHA256_Update, CRYPTO_LIBS=-lcrypto,AC_MSG_ERROR([Libcrypto is required to build this package!]))
+AC_CHECK_LIB(ssl, SSL_new, SSL_LIBS=-lssl,AC_MSG_ERROR([Libssl is required to build this package!]))
 AC_CHECK_LIB(event_core, event_base_new, EVENT_LIBS=-levent_core,AC_MSG_ERROR([libevent is required to build this package!]))
 AC_CHECK_LIB(event_extra, evhttp_new, EVENT_LIBS="$EVENT_LIBS -levent_extra",AC_MSG_ERROR([libevent_extra is required to build this package!]))
+AC_CHECK_LIB(event_openssl, bufferevent_openssl_filter_new, EVENT_LIBS="$EVENT_LIBS -levent_openssl",AC_MSG_ERROR([libevent_openssl is required to build this package!]))
 
 # TODO: improve
 UNIVALUE_LIBS="-lunivalue"
@@ -37,6 +39,7 @@ PROTOBUF_LIBS="-lprotobuf"
 
 AC_SUBST(ELF_LIBS)
 AC_SUBST(CRYPTO_LIBS)
+AC_SUBST(SSL_LIBS)
 AC_SUBST(EVENT_LIBS)
 AC_SUBST(UNIVALUE_LIBS)
 AC_SUBST(PROTOBUF_LIBS)
