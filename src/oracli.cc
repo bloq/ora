@@ -14,23 +14,18 @@
 #if defined(__APPLE__) && defined(__clang__)
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 #endif
+#include "ora-config.h"
 
 #include <stdio.h>
+#include <string>
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <argp.h>
 
-#ifdef _WIN32
-#include <winsock2.h>
-#include <ws2tcpip.h>
-
-#define snprintf _snprintf
-#define strcasecmp _stricmp 
-#else
 #include <sys/socket.h>
 #include <netinet/in.h>
-#endif
 
 #include <event2/bufferevent_ssl.h>
 #include <event2/bufferevent.h>
@@ -45,6 +40,45 @@
 
 static struct event_base *base;
 static int ignore_cert = 0;
+static std::string opt_url = "http://127.0.0.1:12014/";
+
+/* Command line arguments and processing */
+const char *argp_program_version =
+	"oracli " PACKAGE_VERSION "\n"
+	"Copyright 2015 Bloq, Inc.\n"
+	"This is free software; see the source for copying conditions.  There is NO "
+	"warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.";
+
+const char *argp_program_bug_address = PACKAGE_BUGREPORT;
+
+static char doc[] =
+	"Oracle client\n";
+
+static struct argp_option options[] = {
+	{ "url", 1001, "URL", 0,
+	  "Target URL" },
+
+	{ 0 }
+};
+
+/*
+ * command line processing
+ */
+static error_t parse_opt (int key, char *arg, struct argp_state *state)
+{
+	switch(key) {
+	case 1001:
+		opt_url = arg;
+		break;
+
+	default:
+		return ARGP_ERR_UNKNOWN;
+	}
+
+	return 0;
+}
+
+static struct argp argp = { options, parse_opt, NULL, doc };
 
 static void
 http_request_done(struct evhttp_request *req, void *ctx)
@@ -155,6 +189,9 @@ main(int argc, char **argv)
 {
 	int r;
 
+	/* Parsing of commandline parameters */
+	argp_parse(&argp, argc, argv, 0, NULL, NULL);
+
 	struct evhttp_uri *http_uri = NULL;
 	const char *url = NULL, *data_file = NULL;
 	const char *crt = "/etc/ssl/certs/ca-certificates.crt";
@@ -173,54 +210,10 @@ main(int argc, char **argv)
 	struct evhttp_connection *evcon = NULL;
 	struct bufferevent *under_bev = NULL;
 
-	int i;
 	int ret = 0;
 	enum { HTTP, HTTPS } type = HTTP;
 
-	for (i = 1; i < argc; i++) {
-		if (!strcmp("-url", argv[i])) {
-			if (i < argc - 1) {
-				url = argv[i + 1];
-			} else {
-				syntax();
-				goto error;
-			}
-		} else if (!strcmp("-crt", argv[i])) {
-			if (i < argc - 1) {
-				crt = argv[i + 1];
-			} else {
-				syntax();
-				goto error;
-			}
-		} else if (!strcmp("-ignore-cert", argv[i])) {
-			ignore_cert = 1;
-		} else if (!strcmp("-data", argv[i])) {
-			if (i < argc - 1) {
-				data_file = argv[i + 1];
-			} else {
-				syntax();
-				goto error;
-			}
-		} else if (!strcmp("-retries", argv[i])) {
-			if (i < argc - 1) {
-				retries = atoi(argv[i + 1]);
-			} else {
-				syntax();
-				goto error;
-			}
-		} else if (!strcmp("-timeout", argv[i])) {
-			if (i < argc - 1) {
-				timeout = atoi(argv[i + 1]);
-			} else {
-				syntax();
-				goto error;
-			}
-		} else if (!strcmp("-help", argv[i])) {
-			syntax();
-			goto error;
-		}
-	}
-
+	url =  opt_url.c_str();
 	if (!url) {
 		syntax();
 		goto error;

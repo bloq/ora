@@ -18,6 +18,7 @@
 #include <netinet/in.h>
 #include <openssl/sha.h>
 #include <signal.h>
+#include <argp.h>
 #include <univalue.h>
 #include <evhttp.h>
 #include "oraapi.pb.h"
@@ -30,6 +31,64 @@ using namespace std;
 
 static const size_t MAX_HTTP_BODY = 16 * 1000 * 1000;
 static const uint32_t STACK_SIZE = 64 * 1024;
+static const char *opt_pid_file = "/var/run/orad.pid";
+static uint32_t gdbPort = 0;
+static bool opt_profiling = false;
+static string gmonFilename;
+
+/* Command line arguments and processing */
+const char *argp_program_version =
+	"orad " VERSION "\n"
+	"Copyright 2015 Bloq, Inc.\n"
+	"This is free software; see the source for copying conditions.  There is NO "
+	"warranty; not even for MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.";
+
+const char *argp_program_bug_address = PACKAGE_BUGREPORT;
+
+static char doc[] =
+	"Oracle daemon\n";
+
+static struct argp_option options[] = {
+	{ "gdb-port", 'g', "port", 0,
+	  "Enable GDB remote debugging, on specified port" },
+
+	{ "gprof", 1001, "file", 0,
+	  "Enable gprof profiling, output to specified file" },
+
+	{ "pid-file", 'p', "file", 0,
+	  "File used for recording daemon PID, and multiple exclusion (default: /var/run/orad.pid)" },
+
+	{ 0 },
+};
+
+/*
+ * command line processing
+ */
+static error_t parse_opt (int key, char *arg, struct argp_state *state)
+{
+	switch(key) {
+	case 'p':
+		opt_pid_file = arg;
+		break;
+
+	case 'g':
+		gdbPort = atoi(arg);
+		break;
+
+	case 1001:
+		opt_profiling = true;
+		gmonFilename = arg;
+		break;
+
+	default:
+		return ARGP_ERR_UNKNOWN;
+	}
+
+	return 0;
+}
+
+static struct argp argp = { options, parse_opt, NULL, doc };
+
 
 
 bool loadRawData(machine& mach, const string& filename)
@@ -53,18 +112,6 @@ bool loadRawData(machine& mach, const string& filename)
 
 	// add to global memory map
 	return mach.mapInsert(rdr);
-}
-
-static void usage(const char *progname)
-{
-	fprintf(stderr,
-		"Usage: %s [options]\n"
-		"\n"
-		"options:\n"
-		"-g <port>\t\tWait for GDB connection on given port\n"
-		"-p <file>\t\tWrite gprof formatted profile data to <file>\n"
-		,
-		progname);
 }
 
 #if 0
@@ -184,30 +231,6 @@ static void gatherOutput(machine& mach, const string& outFilename)
 	close(fd);
 }
 
-static void oraInit(machine& mach, int argc, char **argv,
-			string& outFilename, string& gmonFilename,
-			uint32_t& gdbPort)
-{
-	int opt;
-	while ((opt = getopt(argc, argv, "g:p:")) != -1) {
-		switch(opt) {
-		case 'g':
-			gdbPort = atoi(optarg);
-			break;
-
-		case 'p':
-			mach.profiling = true;
-			gmonFilename = optarg;
-			break;
-
-		default:
-			usage(argv[0]);
-			exit(EXIT_FAILURE);
-		}
-	}
-
-}
-
 static char lowNibbleToHex(int nibble)
 {
 	static const char *hex = "0123456789ABCDEF";
@@ -296,7 +319,7 @@ static uint32_t readDelimitedHexValue(char *buffer, int *index)
 	return n;
 }
 
-static int gdb_main_loop (uint32_t& gdbPort, machine& mach)
+static int gdb_main_loop (machine& mach)
 {
 	int sockfd, newsockfd, on;
 	struct sockaddr_in serv_addr, cli_addr;
@@ -611,6 +634,9 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
+	/* Parsing of commandline parameters */
+	argp_parse(&argp, argc, argv, 0, NULL, NULL);
+
 	char const SrvAddress[] = DEFAULT_LISTEN_ADDR;
 	std::uint16_t SrvPort = DEFAULT_LISTEN_PORT;
 	std::unique_ptr<evhttp, decltype(&evhttp_free)> Server(evhttp_start(SrvAddress, SrvPort), &evhttp_free);
@@ -625,13 +651,12 @@ int main(int argc, char *argv[])
 	evhttp_set_gencb(Server.get(), rpc_unknown, nullptr);
 
 	machine mach;
-	string outFilename, gmonFilename;
-	uint32_t gdbPort = 0;
+	string outFilename;
 
-	oraInit(mach, argc, argv, outFilename, gmonFilename, gdbPort);
+	mach.profiling = opt_profiling;
 
 	if (gdbPort)
-		gdb_main_loop(gdbPort, mach);
+		gdb_main_loop(mach);
 	else
 		sim_resume(mach);
 
