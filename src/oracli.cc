@@ -1,13 +1,7 @@
-/*
-  This is an example of how to hook up evhttp with bufferevent_ssl
 
-  It just GETs an https URL given on the command-line and prints the response
-  body to stdout.
-
-  Actually, it also accepts plain http URLs to make it easy to compare http vs
-  https code paths.
-
-  Loosely based on le-proxy.c.
+/* Copyright 2015 Bloq Inc.
+ * Distributed under the MIT/X11 software license, see the accompanying
+ * file COPYING or http://www.opensource.org/licenses/mit-license.php.
  */
 
 // Get rid of OSX 10.7 and greater deprecation warnings.
