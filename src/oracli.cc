@@ -38,11 +38,24 @@
 #include <openssl/err.h>
 #include <openssl/rand.h>
 
+#include "oraapi.pb.h"
+
 #define DEFAULT_ENDPOINT "http://127.0.0.1:12014/"
+
+using namespace std;
 
 static struct event_base *base;
 static int ignore_cert = 0;
 static std::string opt_url = DEFAULT_ENDPOINT;
+static bool found_command = false;
+
+enum command_type {
+	CMD_INFO,
+	CMD_EXEC,
+};
+
+static enum command_type opt_command = CMD_INFO;
+
 
 /* Command line arguments and processing */
 const char *argp_program_version =
@@ -53,8 +66,15 @@ const char *argp_program_version =
 
 const char *argp_program_bug_address = PACKAGE_BUGREPORT;
 
-static char doc[] =
-	"Client to Blockchain oracles\n";
+static const char args_doc[] = "COMMAND [COMMAND-OPTIONS...]";
+
+static char global_doc[] =
+	"Client to Blockchain oracles\n"
+	"\n"
+	"Supported commands:\n"
+	"  (empty) - Get endpoint metadata\n"
+	"  exec - Execute Moxie program\n"
+	"\n";
 
 static struct argp_option options[] = {
 	{ "url", 1001, "URL", 0,
@@ -66,11 +86,59 @@ static struct argp_option options[] = {
 /*
  * command line processing
  */
-static error_t parse_opt (int key, char *arg, struct argp_state *state)
+
+static struct argp_option exec_options[] = {
+	{ 0 }
+};
+
+static char exec_doc[] =
+	"Execute a moxie program\n";
+
+static error_t parse_exec_opt (int key, char *arg, struct argp_state *state)
+{
+	switch(key) {
+	default:
+		return ARGP_ERR_UNKNOWN;
+	}
+
+	return 0;
+}
+
+static struct argp argp_exec = { exec_options, parse_exec_opt, NULL, exec_doc };
+
+static void parse_cmd_exec(struct argp_state* state)
+{
+	int    argc = state->argc - state->next + 1;
+	char** argv = &state->argv[state->next - 1];
+	char*  argv0 =  argv[0];
+
+	string new_arg0(state->name);
+	new_arg0.append(" exec");
+
+	argv[0] = (char *) new_arg0.c_str();
+
+	argp_parse(&argp_exec, argc, argv, ARGP_IN_ORDER, &argc, NULL);
+
+	argv[0] = argv0;
+
+	state->next += argc - 1;
+}
+
+static error_t parse_global_opt (int key, char *arg, struct argp_state *state)
 {
 	switch(key) {
 	case 1001:
 		opt_url = arg;
+		break;
+
+	case ARGP_KEY_ARG:
+		found_command = true;
+		if (strcmp(arg, "exec") == 0) {
+			opt_command = CMD_EXEC;
+			parse_cmd_exec(state);
+		} else {
+			argp_error(state, "%s is not a valid command", arg);
+		}
 		break;
 
 	default:
@@ -80,7 +148,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 	return 0;
 }
 
-static struct argp argp = { options, parse_opt, NULL, doc };
+static struct argp argp = { options, parse_global_opt, args_doc, global_doc };
 
 static void
 http_request_done(struct evhttp_request *req, void *ctx)
@@ -186,19 +254,40 @@ static int cert_verify_callback(X509_STORE_CTX *x509_ctx, void *arg)
 	return 0;
 }
 
+static string cmd_exec_encode()
+{
+	Ora::ExecInput oreq;
+
+	oreq.set_chain_id(Ora::ExecInput_ChainId_BITCOIN);
+
+	assert(oreq.IsInitialized() == true);
+
+	string s;
+	if (!oreq.SerializeToString(&s))
+		return "";
+
+	return s;
+}
+
 int
 main(int argc, char **argv)
 {
 	int r;
 
 	/* Parsing of commandline parameters */
-	argp_parse(&argp, argc, argv, 0, NULL, NULL);
+	argp_parse(&argp, argc, argv, ARGP_IN_ORDER, NULL, NULL);
 
 	struct evhttp_uri *http_uri = NULL;
-	const char *url = NULL, *data_file = NULL;
-	const char *crt = "/etc/ssl/certs/ca-certificates.crt";
-	const char *scheme, *host, *path, *query;
-	char uri[256];
+	string uri;
+	string url, data_file;
+	string scheme, host, path, query;
+	string cmd_name;
+	string crt("/etc/ssl/certs/ca-certificates.crt");
+	string body;
+	struct evbuffer *OutBuf = NULL;
+	bool method_post = false;
+	const char *stmp;
+	char tmpbuf[512];
 	int port;
 	int retries = 0;
 	int timeout = -1;
@@ -208,55 +297,52 @@ main(int argc, char **argv)
 	struct bufferevent *bev;
 	struct evhttp_request *req;
 	struct evkeyvalq *output_headers;
-	struct evbuffer *output_buffer;
 	struct evhttp_connection *evcon = NULL;
 	struct bufferevent *under_bev = NULL;
 
 	int ret = 0;
 	enum { HTTP, HTTPS } type = HTTP;
 
-	url =  opt_url.c_str();
-	if (!url) {
+	url =  opt_url;
+	if (url.empty()) {
 		syntax();
 		goto error;
 	}
 
-	http_uri = evhttp_uri_parse(url);
+	http_uri = evhttp_uri_parse(url.c_str());
 	if (http_uri == NULL) {
 		err("malformed url");
 		goto error;
 	}
 
 	scheme = evhttp_uri_get_scheme(http_uri);
-	if (scheme == NULL || (strcasecmp(scheme, "https") != 0 &&
-	                       strcasecmp(scheme, "http") != 0)) {
+	if (scheme.empty() || (strcasecmp(scheme.c_str(), "https") != 0 &&
+	                       strcasecmp(scheme.c_str(), "http") != 0)) {
 		err("url must be http or https");
 		goto error;
 	}
 
-	host = evhttp_uri_get_host(http_uri);
-	if (host == NULL) {
+	stmp = evhttp_uri_get_host(http_uri);
+	if (stmp)
+		host.assign(stmp);
+	if (host.empty()) {
 		err("url must have a host");
 		goto error;
 	}
 
 	port = evhttp_uri_get_port(http_uri);
 	if (port == -1) {
-		port = (strcasecmp(scheme, "http") == 0) ? 80 : 443;
+		port = (strcasecmp(scheme.c_str(), "http") == 0) ? 80 : 443;
 	}
 
-	path = evhttp_uri_get_path(http_uri);
-	if (strlen(path) == 0) {
+	stmp = evhttp_uri_get_path(http_uri);
+	if (stmp)
+		path.assign(stmp);
+	if (path.empty()) {
 		path = "/";
 	}
 
-	query = evhttp_uri_get_query(http_uri);
-	if (query == NULL) {
-		snprintf(uri, sizeof(uri) - 1, "%s", path);
-	} else {
-		snprintf(uri, sizeof(uri) - 1, "%s?%s", path, query);
-	}
-	uri[sizeof(uri) - 1] = '\0';
+	uri = path;
 
 	// Initialize OpenSSL
 	SSL_library_init();
@@ -281,7 +367,7 @@ main(int argc, char **argv)
 
 	/* Attempt to use the system's trusted root certificates.
 	 * (This path is only valid for Debian-based systems.) */
-	if (1 != SSL_CTX_load_verify_locations(ssl_ctx, crt, NULL)) {
+	if (1 != SSL_CTX_load_verify_locations(ssl_ctx, crt.c_str(), NULL)) {
 		err_openssl("SSL_CTX_load_verify_locations");
 		goto error;
 	}
@@ -308,7 +394,7 @@ main(int argc, char **argv)
 	 * we hadn't set the callback.  Therefore, we're just
 	 * "wrapping" OpenSSL's routine, not replacing it. */
 	SSL_CTX_set_cert_verify_callback(ssl_ctx, cert_verify_callback,
-					  (void *) host);
+					  (void *) host.c_str());
 
 	// Create event base
 	base = event_base_new();
@@ -326,19 +412,19 @@ main(int argc, char **argv)
 
 	#ifdef SSL_CTRL_SET_TLSEXT_HOSTNAME
 	// Set hostname for SNI extension
-	SSL_set_tlsext_host_name(ssl, host);
+	SSL_set_tlsext_host_name(ssl, host.c_str());
 	#endif
 
 	// For simplicity, we let DNS resolution block. Everything else should be
 	// asynchronous though.
-	evcon = evhttp_connection_base_new(base, NULL, host, port);
+	evcon = evhttp_connection_base_new(base, NULL, host.c_str(), port);
 	if (evcon == NULL) {
 		fprintf(stderr, "evhttp_connection_base_bufferevent_new() failed\n");
 		goto error;
 	}
 
 	under_bev = evhttp_connection_get_bufferevent(evcon);
-	if (strcasecmp(scheme, "http") != 0) {
+	if (strcasecmp(scheme.c_str(), "http") != 0) {
 		type = HTTPS;
 		bev = bufferevent_openssl_filter_new(base, under_bev, ssl,
 			BUFFEREVENT_SSL_CONNECTING,
@@ -358,6 +444,16 @@ main(int argc, char **argv)
 		evhttp_connection_set_timeout(evcon, timeout);
 	}
 
+	switch (opt_command) {
+	case CMD_INFO:
+		cmd_name = "info";
+		break;
+	case CMD_EXEC:
+		cmd_name = "exec";
+		break;
+	}
+	fprintf(stderr, "Running command %s\n", cmd_name.c_str());
+
 	// Fire off the request
 	req = evhttp_request_new(http_request_done, bev);
 	if (req == NULL) {
@@ -365,35 +461,34 @@ main(int argc, char **argv)
 		goto error;
 	}
 
-	output_headers = evhttp_request_get_output_headers(req);
-	evhttp_add_header(output_headers, "Host", host);
-	evhttp_add_header(output_headers, "Connection", "close");
+	OutBuf = evhttp_request_get_output_buffer(req);
+	if (!OutBuf)
+		goto error;
 
-	if (data_file) {
-		/* NOTE: In production code, you'd probably want to use
-		 * evbuffer_add_file() or evbuffer_add_file_segment(), to
-		 * avoid needless copying. */
-		FILE * f = fopen(data_file, "rb");
-		char buf[1024];
-		size_t s;
-		size_t bytes = 0;
-
-		if (!f) {
-			syntax();
-			goto error;
-		}
-
-		output_buffer = evhttp_request_get_output_buffer(req);
-		while ((s = fread(buf, 1, sizeof(buf), f)) > 0) {
-			evbuffer_add(output_buffer, buf, s);
-			bytes += s;
-		}
-		evutil_snprintf(buf, sizeof(buf)-1, "%lu", (unsigned long)bytes);
-		evhttp_add_header(output_headers, "Content-Length", buf);
-		fclose(f);
+	switch (opt_command) {
+	case CMD_INFO:
+		// do nothing
+		break;
+	case CMD_EXEC:
+		method_post = true;
+		uri.append("exec");
+		body = cmd_exec_encode();
+		break;
 	}
 
-	r = evhttp_make_request(evcon, req, data_file ? EVHTTP_REQ_POST : EVHTTP_REQ_GET, uri);
+	output_headers = evhttp_request_get_output_headers(req);
+	evhttp_add_header(output_headers, "Host", host.c_str());
+	evhttp_add_header(output_headers, "Connection", "close");
+
+	if (!body.empty()) {
+		snprintf(tmpbuf, sizeof(tmpbuf), "%zu", body.size());
+		string clen_str(tmpbuf);
+		evhttp_add_header(output_headers, "Content-Length", clen_str.c_str());
+
+		evbuffer_add(OutBuf, body.c_str(), body.size());
+	}
+
+	r = evhttp_make_request(evcon, req, method_post ? EVHTTP_REQ_POST : EVHTTP_REQ_GET, uri.c_str());
 	if (r != 0) {
 		fprintf(stderr, "evhttp_make_request() failed\n");
 		goto error;

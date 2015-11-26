@@ -9,7 +9,7 @@ message ExecInput {
     }
 
     required ChainId chain_id = 1 [default = BITCOIN];
-    required bytes txid = 2;
+    optional bytes txid = 2;
     optional bytes salt = 3;
     repeated bytes input_hashes = 4;
     repeated bytes input_data = 5;
