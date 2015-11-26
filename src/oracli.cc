@@ -38,9 +38,11 @@
 #include <openssl/err.h>
 #include <openssl/rand.h>
 
+#define DEFAULT_ENDPOINT "http://127.0.0.1:12014/"
+
 static struct event_base *base;
 static int ignore_cert = 0;
-static std::string opt_url = "http://127.0.0.1:12014/";
+static std::string opt_url = DEFAULT_ENDPOINT;
 
 /* Command line arguments and processing */
 const char *argp_program_version =
@@ -52,11 +54,11 @@ const char *argp_program_version =
 const char *argp_program_bug_address = PACKAGE_BUGREPORT;
 
 static char doc[] =
-	"Oracle client\n";
+	"Client to Blockchain oracles\n";
 
 static struct argp_option options[] = {
 	{ "url", 1001, "URL", 0,
-	  "Target URL" },
+	  "Target endpoint API URL (default: " DEFAULT_ENDPOINT ")" },
 
 	{ 0 }
 };
