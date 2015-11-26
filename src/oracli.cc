@@ -184,12 +184,26 @@ http_request_done(struct evhttp_request *req, void *ctx)
 	fprintf(stderr, "Response line: %d\n",
 	    evhttp_request_get_response_code(req));
 
+	string body;
 	while ((nread = evbuffer_remove(evhttp_request_get_input_buffer(req),
-		    buffer, sizeof(buffer)))
-	       > 0) {
-		/* These are just arbitrary chunks of 256 bytes.
-		 * They are not lines, so we can't treat them as such. */
-		fwrite(buffer, nread, 1, stdout);
+	    	buffer, sizeof(buffer))))
+		body.append(buffer, nread);
+
+	fprintf(stderr, "Response bytes: %zu\n", body.size());
+
+	switch (opt_command) {
+	case CMD_EXEC: {
+		Ora::ExecOutput oresp;
+		if (!oresp.ParseFromString(body)) {
+			fprintf(stderr, "Exec: protobuf decode failed\n");
+			exit(1);
+		}
+		break;
+	}
+
+	default:
+		fwrite(body.c_str(), body.size(), 1, stdout);
+		break;
 	}
 }
 

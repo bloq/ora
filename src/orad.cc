@@ -589,19 +589,20 @@ void rpc_exec(evhttp_request *req, void *)
 
 	// FIXME - actually do something...
 
-	// prep HTTP response output
-	auto *OutBuf = evhttp_request_get_output_buffer(req);
-	if (!OutBuf)
-		return;
-
 	// prep protobuf msg response
 	Ora::ExecOutput oresp;
 	oresp.set_return_code(0);
 	oresp.set_sha256("froo");
-	if (!oresp.IsInitialized() || !oresp.SerializeToString(&body)) {
-		evhttp_send_error(req, 500, "internal checks failed");
-		return;
-	}
+	assert(oresp.IsInitialized() == true);
+
+	bool rc = oresp.SerializeToString(&body);
+	assert(rc == true);
+	assert(body.size() > 0);
+
+	// content length
+	char tmpbuf[128];
+	snprintf(tmpbuf, sizeof(tmpbuf), "%zu", body.size());
+	string clen_str(tmpbuf);
 
 	// hash output
 	vector<unsigned char> md(SHA256_DIGEST_LENGTH);
@@ -610,11 +611,16 @@ void rpc_exec(evhttp_request *req, void *)
 	// HTTP headers
 	struct evkeyvalq * kv = evhttp_request_get_output_headers(req);
 	evhttp_add_header(kv, "Content-Type", "application/protobuf");
+	evhttp_add_header(kv, "Content-Length", clen_str.c_str());
 	evhttp_add_header(kv, "Server", "orad/" PACKAGE_VERSION);
 	evhttp_add_header(kv, "ETag", HexStr(md).c_str());
 
+	// HTTP body
+	std::unique_ptr<evbuffer, decltype(&evbuffer_free)> OutBuf(evbuffer_new(), &evbuffer_free);
+	evbuffer_add(OutBuf.get(), body.c_str(), body.size());
+
 	// finalize, send everything
-	evhttp_send_reply(req, HTTP_OK, "", OutBuf);
+	evhttp_send_reply(req, HTTP_OK, "", OutBuf.get());
 };
 
 void rpc_unknown(evhttp_request *req, void *)

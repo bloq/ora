@@ -1,9 +1,9 @@
 
 EXTRA_DIST = oraapi.proto
 
-noinst_PROGRAMS = sandbox oracli orad gen-sum
+noinst_PROGRAMS = sandbox oracli orad gen-sum pbmaker
 
-noinst_LIBRARIES = libsandbox.a
+noinst_LIBRARIES = libsandbox.a liboraapi.a
 
 AM_CXXFLAGS = -std=gnu++0x
 
@@ -19,19 +19,22 @@ sandbox_SOURCES = \
 	sandbox.cc
 sandbox_LDADD = libsandbox.a $(ELF_LIBS) $(CRYPTO_LIBS)
 
+liboraapi_a_SOURCES = oraapi.pb.cc oraapi.pb.h
+
+pbmaker_SOURCES = pbmaker.cc
+pbmaker_LDADD = liboraapi.a $(CRYPTO_LIBS) $(EVENT_LIBS) $(UNIVALUE_LIBS) $(PROTOBUF_LIBS)
+
 oracli_SOURCES = \
-	oraapi.pb.cc oraapi.pb.h \
 	oracli.cc
-oracli_LDADD = $(CRYPTO_LIBS) $(EVENT_LIBS) $(UNIVALUE_LIBS) $(PROTOBUF_LIBS) $(SSL_LIBS)
+oracli_LDADD = liboraapi.a $(CRYPTO_LIBS) $(EVENT_LIBS) $(UNIVALUE_LIBS) $(PROTOBUF_LIBS) $(SSL_LIBS)
 
 orad_SOURCES = \
 	elf.cc \
 	machine.cc \
 	moxie.h \
 	moxie.cc \
-	orad.cc \
-	oraapi.pb.cc oraapi.pb.h
-orad_LDADD = libsandbox.a $(ELF_LIBS) $(CRYPTO_LIBS) $(EVENT_LIBS) $(UNIVALUE_LIBS) $(PROTOBUF_LIBS)
+	orad.cc
+orad_LDADD = liboraapi.a libsandbox.a $(ELF_LIBS) $(CRYPTO_LIBS) $(EVENT_LIBS) $(UNIVALUE_LIBS) $(PROTOBUF_LIBS)
 
 gen_sum_SOURCES = gen-sum.cc
 gen_sum_LDADD = libsandbox.a $(CRYPTO_LIBS)
