@@ -257,6 +257,69 @@ static int cert_verify_callback(X509_STORE_CTX *x509_ctx, void *arg)
 	return 0;
 }
 
+static bool init_libssl(SSL_CTX **ssl_ctx_out, const string& crt,
+			const string& host)
+{
+	SSL_CTX *ssl_ctx = NULL;
+
+	// Initialize OpenSSL
+	SSL_library_init();
+	ERR_load_crypto_strings();
+	SSL_load_error_strings();
+	OpenSSL_add_all_algorithms();
+
+	/* This isn't strictly necessary... OpenSSL performs RAND_poll
+	 * automatically on first use of random number generator. */
+	int r = RAND_poll();
+	if (r == 0) {
+		err_openssl("RAND_poll");
+		return false;
+	}
+
+	/* Create a new OpenSSL context */
+	ssl_ctx = SSL_CTX_new(SSLv23_method());
+	if (!ssl_ctx) {
+		err_openssl("SSL_CTX_new");
+		return false;
+	}
+
+	/* Attempt to use the system's trusted root certificates.
+	 * (This path is only valid for Debian-based systems.) */
+	if (1 != SSL_CTX_load_verify_locations(ssl_ctx, crt.c_str(), NULL)) {
+		err_openssl("SSL_CTX_load_verify_locations");
+		SSL_CTX_free(ssl_ctx);
+		return false;
+	}
+	/* Ask OpenSSL to verify the server certificate.  Note that this
+	 * does NOT include verifying that the hostname is correct.
+	 * So, by itself, this means anyone with any legitimate
+	 * CA-issued certificate for any website, can impersonate any
+	 * other website in the world.  This is not good.  See "The
+	 * Most Dangerous Code in the World" article at
+	 * https://crypto.stanford.edu/~dabo/pubs/abstracts/ssl-client-bugs.html
+	 */
+	SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER, NULL);
+	/* This is how we solve the problem mentioned in the previous
+	 * comment.  We "wrap" OpenSSL's validation routine in our
+	 * own routine, which also validates the hostname by calling
+	 * the code provided by iSECPartners.  Note that even though
+	 * the "Everything You've Always Wanted to Know About
+	 * Certificate Validation With OpenSSL (But Were Afraid to
+	 * Ask)" paper from iSECPartners says very explicitly not to
+	 * call SSL_CTX_set_cert_verify_callback (at the bottom of
+	 * page 2), what we're doing here is safe because our
+	 * cert_verify_callback() calls X509_verify_cert(), which is
+	 * OpenSSL's built-in routine which would have been called if
+	 * we hadn't set the callback.  Therefore, we're just
+	 * "wrapping" OpenSSL's routine, not replacing it. */
+	SSL_CTX_set_cert_verify_callback(ssl_ctx, cert_verify_callback,
+					  (void *) host.c_str());
+
+
+	*ssl_ctx_out = ssl_ctx;
+	return true;
+}
+
 static void cmd_stdout_response(const string& http_body)
 {
 	ssize_t wrc = write(STDOUT_FILENO, &http_body[0], http_body.size());
@@ -367,57 +430,7 @@ main(int argc, char **argv)
 
 	uri = path;
 
-	// Initialize OpenSSL
-	SSL_library_init();
-	ERR_load_crypto_strings();
-	SSL_load_error_strings();
-	OpenSSL_add_all_algorithms();
-
-	/* This isn't strictly necessary... OpenSSL performs RAND_poll
-	 * automatically on first use of random number generator. */
-	r = RAND_poll();
-	if (r == 0) {
-		err_openssl("RAND_poll");
-		goto error;
-	}
-
-	/* Create a new OpenSSL context */
-	ssl_ctx = SSL_CTX_new(SSLv23_method());
-	if (!ssl_ctx) {
-		err_openssl("SSL_CTX_new");
-		goto error;
-	}
-
-	/* Attempt to use the system's trusted root certificates.
-	 * (This path is only valid for Debian-based systems.) */
-	if (1 != SSL_CTX_load_verify_locations(ssl_ctx, crt.c_str(), NULL)) {
-		err_openssl("SSL_CTX_load_verify_locations");
-		goto error;
-	}
-	/* Ask OpenSSL to verify the server certificate.  Note that this
-	 * does NOT include verifying that the hostname is correct.
-	 * So, by itself, this means anyone with any legitimate
-	 * CA-issued certificate for any website, can impersonate any
-	 * other website in the world.  This is not good.  See "The
-	 * Most Dangerous Code in the World" article at
-	 * https://crypto.stanford.edu/~dabo/pubs/abstracts/ssl-client-bugs.html
-	 */
-	SSL_CTX_set_verify(ssl_ctx, SSL_VERIFY_PEER, NULL);
-	/* This is how we solve the problem mentioned in the previous
-	 * comment.  We "wrap" OpenSSL's validation routine in our
-	 * own routine, which also validates the hostname by calling
-	 * the code provided by iSECPartners.  Note that even though
-	 * the "Everything You've Always Wanted to Know About
-	 * Certificate Validation With OpenSSL (But Were Afraid to
-	 * Ask)" paper from iSECPartners says very explicitly not to
-	 * call SSL_CTX_set_cert_verify_callback (at the bottom of
-	 * page 2), what we're doing here is safe because our
-	 * cert_verify_callback() calls X509_verify_cert(), which is
-	 * OpenSSL's built-in routine which would have been called if
-	 * we hadn't set the callback.  Therefore, we're just
-	 * "wrapping" OpenSSL's routine, not replacing it. */
-	SSL_CTX_set_cert_verify_callback(ssl_ctx, cert_verify_callback,
-					  (void *) host.c_str());
+	init_libssl(&ssl_ctx, crt, host);
 
 	// Create event base
 	base = event_base_new();
