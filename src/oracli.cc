@@ -17,6 +17,7 @@
 #include "ora-config.h"
 
 #include <stdio.h>
+#include <memory>
 #include <string>
 #include <assert.h>
 #include <stdlib.h>
@@ -358,6 +359,57 @@ static string cmd_exec_encode()
 	return s;
 }
 
+enum http_scheme_type {
+	HTTP,
+	HTTPS
+};
+
+static bool http_uri_parse(const string& uri,
+			   enum http_scheme_type& scheme,
+			   string& host, int& port,
+			   string& path)
+{
+	std::unique_ptr<evhttp_uri, decltype(&evhttp_uri_free)> http_uri(evhttp_uri_parse(uri.c_str()), &evhttp_uri_free);
+
+	if (!http_uri) {
+		err("malformed url");
+		return false;
+	}
+
+	string scheme_str = evhttp_uri_get_scheme(http_uri.get());
+	if (scheme_str.empty() || (strcasecmp(scheme_str.c_str(), "https") != 0 &&
+	                       strcasecmp(scheme_str.c_str(), "http") != 0)) {
+		err("url must be http or https");
+		return false;
+	}
+	if (strcasecmp(scheme_str.c_str(), "https") == 0)
+		scheme = HTTPS;
+	else
+		scheme = HTTP;
+
+	const char *stmp = evhttp_uri_get_host(http_uri.get());
+	if (stmp)
+		host.assign(stmp);
+	if (host.empty()) {
+		err("url must have a host");
+		return false;
+	}
+
+	port = evhttp_uri_get_port(http_uri.get());
+	if (port == -1) {
+		port = (scheme == HTTP) ? 80 : 443;
+	}
+
+	stmp = evhttp_uri_get_path(http_uri.get());
+	if (stmp)
+		path.assign(stmp);
+	if (path.empty()) {
+		path = "/";
+	}
+
+	return true;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -366,17 +418,14 @@ main(int argc, char **argv)
 	/* Parsing of commandline parameters */
 	argp_parse(&argp, argc, argv, ARGP_IN_ORDER, NULL, NULL);
 
-	struct evhttp_uri *http_uri = NULL;
 	string uri;
-	string url, data_file;
-	string scheme, host, path, query;
+	string host, path;
 	string crt("/etc/ssl/certs/ca-certificates.crt");
 	string body;
 	struct evbuffer *OutBuf = NULL;
 	bool method_post = false;
-	const char *stmp;
 	char tmpbuf[512];
-	int port;
+	int port = -1;
 	int retries = 0;
 	int timeout = -1;
 
@@ -389,44 +438,13 @@ main(int argc, char **argv)
 	struct bufferevent *under_bev = NULL;
 
 	int ret = 0;
-	enum { HTTP, HTTPS } type = HTTP;
+	enum http_scheme_type type = HTTP;
 
-	url = opt_url;
-	if (url.empty())
+	if (opt_url.empty())
 		goto error;
 
-	http_uri = evhttp_uri_parse(url.c_str());
-	if (http_uri == NULL) {
-		err("malformed url");
+	if (!http_uri_parse(opt_url, type, host, port, path))
 		goto error;
-	}
-
-	scheme = evhttp_uri_get_scheme(http_uri);
-	if (scheme.empty() || (strcasecmp(scheme.c_str(), "https") != 0 &&
-	                       strcasecmp(scheme.c_str(), "http") != 0)) {
-		err("url must be http or https");
-		goto error;
-	}
-
-	stmp = evhttp_uri_get_host(http_uri);
-	if (stmp)
-		host.assign(stmp);
-	if (host.empty()) {
-		err("url must have a host");
-		goto error;
-	}
-
-	port = evhttp_uri_get_port(http_uri);
-	if (port == -1) {
-		port = (strcasecmp(scheme.c_str(), "http") == 0) ? 80 : 443;
-	}
-
-	stmp = evhttp_uri_get_path(http_uri);
-	if (stmp)
-		path.assign(stmp);
-	if (path.empty()) {
-		path = "/";
-	}
 
 	uri = path;
 
@@ -460,8 +478,7 @@ main(int argc, char **argv)
 	}
 
 	under_bev = evhttp_connection_get_bufferevent(evcon);
-	if (strcasecmp(scheme.c_str(), "http") != 0) {
-		type = HTTPS;
+	if (type == HTTPS) {
 		bev = bufferevent_openssl_filter_new(base, under_bev, ssl,
 			BUFFEREVENT_SSL_CONNECTING,
 			BEV_OPT_CLOSE_ON_FREE|BEV_OPT_DEFER_CALLBACKS);
@@ -528,8 +545,6 @@ error:
 cleanup:
 	if (evcon)
 		evhttp_connection_free(evcon);
-	if (http_uri)
-		evhttp_uri_free(http_uri);
 	event_base_free(base);
 
 	if (ssl_ctx)
