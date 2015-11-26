@@ -31,9 +31,13 @@ AC_CHECK_LIB(crypto, SHA256_Update, CRYPTO_LIBS=-lcrypto,AC_MSG_ERROR([Libcrypto
 AC_CHECK_LIB(event_core, event_base_new, EVENT_LIBS=-levent_core,AC_MSG_ERROR([libevent is required to build this package!]))
 AC_CHECK_LIB(event_extra, evhttp_new, EVENT_LIBS="$EVENT_LIBS -levent_extra",AC_MSG_ERROR([libevent_extra is required to build this package!]))
 
+# TODO: improve
+UNIVALUE_LIBS="-lunivalue"
+
 AC_SUBST(ELF_LIBS)
 AC_SUBST(CRYPTO_LIBS)
 AC_SUBST(EVENT_LIBS)
+AC_SUBST(UNIVALUE_LIBS)
 AC_SUBST(MOX_AS)
 AC_SUBST(MOX_AR)
 AC_SUBST(MOX_GCC)

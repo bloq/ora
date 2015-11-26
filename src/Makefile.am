@@ -23,7 +23,7 @@ orad_SOURCES = \
 	moxie.h \
 	moxie.cc \
 	orad.cc
-orad_LDADD = libsandbox.a $(ELF_LIBS) $(CRYPTO_LIBS) $(EVENT_LIBS)
+orad_LDADD = libsandbox.a $(ELF_LIBS) $(CRYPTO_LIBS) $(EVENT_LIBS) $(UNIVALUE_LIBS)
 
 gen_sum_SOURCES = gen-sum.cc
 gen_sum_LDADD = libsandbox.a $(CRYPTO_LIBS)

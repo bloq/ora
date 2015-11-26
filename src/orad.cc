@@ -16,7 +16,9 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
+#include <openssl/sha.h>
 #include <signal.h>
+#include <univalue.h>
 #include <evhttp.h>
 #include "sandbox.h"
 
@@ -494,7 +496,27 @@ void rpc_home(evhttp_request *req, void *)
 	auto *OutBuf = evhttp_request_get_output_buffer(req);
 	if (!OutBuf)
 		return;
-	evbuffer_add_printf(OutBuf, "<html><body><center><h1>Hello World!</h1></center></body></html>");
+
+	UniValue rv(UniValue::VARR);
+
+	UniValue api_obj(UniValue::VOBJ);
+	api_obj.pushKV("name", "ora/1");		// service ora, ver 1
+	api_obj.pushKV("pricing-type", NullUniValue);
+
+	rv.push_back(api_obj);
+
+	std::string body = rv.write(2) + "\n";
+
+	vector<unsigned char> md(SHA256_DIGEST_LENGTH);
+	SHA256((const unsigned char *) body.c_str(), body.size(), &md[0]);
+
+	evbuffer_add(OutBuf, body.c_str(), body.size());
+
+	struct evkeyvalq * kv = evhttp_request_get_output_headers(req);
+	evhttp_add_header(kv, "Content-Type", "application/json");
+	evhttp_add_header(kv, "Server", "orad/" PACKAGE_VERSION);
+	evhttp_add_header(kv, "ETag", HexStr(md).c_str());
+
 	evhttp_send_reply(req, HTTP_OK, "", OutBuf);
 };
 
