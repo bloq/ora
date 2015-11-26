@@ -24,6 +24,9 @@
 
 using namespace std;
 
+#define DEFAULT_LISTEN_ADDR "0.0.0.0"
+#define DEFAULT_LISTEN_PORT 12014
+
 static const uint32_t STACK_SIZE = 64 * 1024;
 
 
@@ -546,8 +549,8 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	char const SrvAddress[] = "127.0.0.1";
-	std::uint16_t SrvPort = 12014;
+	char const SrvAddress[] = DEFAULT_LISTEN_ADDR;
+	std::uint16_t SrvPort = DEFAULT_LISTEN_PORT;
 	std::unique_ptr<evhttp, decltype(&evhttp_free)> Server(evhttp_start(SrvAddress, SrvPort), &evhttp_free);
 	if (!Server)
 	{
