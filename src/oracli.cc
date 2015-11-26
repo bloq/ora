@@ -410,6 +410,53 @@ static bool http_uri_parse(const string& uri,
 	return true;
 }
 
+static struct evhttp_request *build_http_req(struct bufferevent *bev,
+					     bool& method_post,
+					     string& uri,
+					     const string& host)
+{
+	struct evhttp_request *req;
+	req = evhttp_request_new(http_request_done, bev);
+	if (req == NULL) {
+		fprintf(stderr, "evhttp_request_new() failed\n");
+		return NULL;
+	}
+
+	struct evbuffer *OutBuf = evhttp_request_get_output_buffer(req);
+	if (!OutBuf) {
+		evhttp_request_free(req);
+		return NULL;
+	}
+
+	string body;
+	method_post = false;
+	switch (opt_command) {
+	case CMD_INFO:
+		// do nothing
+		break;
+	case CMD_EXEC:
+		method_post = true;
+		uri.append("exec");
+		body = cmd_exec_encode();
+		break;
+	}
+
+	struct evkeyvalq *output_headers=evhttp_request_get_output_headers(req);
+	evhttp_add_header(output_headers, "Host", host.c_str());
+	evhttp_add_header(output_headers, "Connection", "close");
+
+	if (!body.empty()) {
+		char tmpbuf[512];
+		snprintf(tmpbuf, sizeof(tmpbuf), "%zu", body.size());
+		string clen_str(tmpbuf);
+		evhttp_add_header(output_headers, "Content-Length", clen_str.c_str());
+
+		evbuffer_add(OutBuf, body.c_str(), body.size());
+	}
+
+	return req;
+}
+
 int
 main(int argc, char **argv)
 {
@@ -421,19 +468,13 @@ main(int argc, char **argv)
 	string uri;
 	string host, path;
 	string crt("/etc/ssl/certs/ca-certificates.crt");
-	string body;
-	struct evbuffer *OutBuf = NULL;
 	bool method_post = false;
-	char tmpbuf[512];
 	int port = -1;
-	int retries = 0;
-	int timeout = -1;
 
 	SSL_CTX *ssl_ctx = NULL;
 	SSL *ssl = NULL;
 	struct bufferevent *bev;
 	struct evhttp_request *req;
-	struct evkeyvalq *output_headers;
 	struct evhttp_connection *evcon = NULL;
 	struct bufferevent *under_bev = NULL;
 
@@ -490,46 +531,9 @@ main(int argc, char **argv)
 	} else
 		bev = under_bev;
 
-	if (retries > 0) {
-		evhttp_connection_set_retries(evcon, retries);
-	}
-	if (timeout >= 0) {
-		evhttp_connection_set_timeout(evcon, timeout);
-	}
-
-	// Fire off the request
-	req = evhttp_request_new(http_request_done, bev);
-	if (req == NULL) {
-		fprintf(stderr, "evhttp_request_new() failed\n");
+	req = build_http_req(bev, method_post, uri, host);
+	if (!req)
 		goto error;
-	}
-
-	OutBuf = evhttp_request_get_output_buffer(req);
-	if (!OutBuf)
-		goto error;
-
-	switch (opt_command) {
-	case CMD_INFO:
-		// do nothing
-		break;
-	case CMD_EXEC:
-		method_post = true;
-		uri.append("exec");
-		body = cmd_exec_encode();
-		break;
-	}
-
-	output_headers = evhttp_request_get_output_headers(req);
-	evhttp_add_header(output_headers, "Host", host.c_str());
-	evhttp_add_header(output_headers, "Connection", "close");
-
-	if (!body.empty()) {
-		snprintf(tmpbuf, sizeof(tmpbuf), "%zu", body.size());
-		string clen_str(tmpbuf);
-		evhttp_add_header(output_headers, "Content-Length", clen_str.c_str());
-
-		evbuffer_add(OutBuf, body.c_str(), body.size());
-	}
 
 	r = evhttp_make_request(evcon, req, method_post ? EVHTTP_REQ_POST : EVHTTP_REQ_GET, uri.c_str());
 	if (r != 0) {
