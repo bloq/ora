@@ -56,6 +56,11 @@ enum command_type {
 	CMD_EXEC,
 };
 
+enum http_scheme_type {
+	HTTP,
+	HTTPS
+};
+
 static enum command_type opt_command = CMD_INFO;
 
 static void cmd_info_response(const string& http_body);
@@ -154,56 +159,42 @@ static error_t parse_global_opt (int key, char *arg, struct argp_state *state)
 
 static struct argp argp = { options, parse_global_opt, args_doc, global_doc };
 
-static void
-http_request_done(struct evhttp_request *req, void *ctx)
+static void cmd_stdout_response(const string& http_body)
 {
-	char buffer[256];
-	int nread;
+	ssize_t wrc = write(STDOUT_FILENO, &http_body[0], http_body.size());
+	assert(wrc == (ssize_t) http_body.size());
+}
 
-	if (req == NULL) {
-		/* If req is NULL, it means an error occurred, but
-		 * sadly we are mostly left guessing what the error
-		 * might have been.  We'll do our best... */
-		struct bufferevent *bev = (struct bufferevent *) ctx;
-		unsigned long oslerr;
-		int printed_err = 0;
-		int errcode = EVUTIL_SOCKET_ERROR();
-		fprintf(stderr, "some request failed - no idea which one though!\n");
-		/* Print out the OpenSSL error queue that libevent
-		 * squirreled away for us, if any. */
-		while ((oslerr = bufferevent_get_openssl_error(bev))) {
-			ERR_error_string_n(oslerr, buffer, sizeof(buffer));
-			fprintf(stderr, "%s\n", buffer);
-			printed_err = 1;
-		}
-		/* If the OpenSSL error queue was empty, maybe it was a
-		 * socket error; let's try printing that. */
-		if (! printed_err)
-			fprintf(stderr, "socket error = %s (%d)\n",
-				evutil_socket_error_to_string(errcode),
-				errcode);
-		return;
+static void cmd_info_response(const string& http_body)
+{
+	cmd_stdout_response(http_body);
+}
+
+static void cmd_exec_response(const string& http_body)
+{
+	Ora::ExecOutput oresp;
+	if (!oresp.ParseFromString(http_body)) {
+		fprintf(stderr, "Exec: protobuf decode failed\n");
+		exit(1);
 	}
 
-	int http_status = evhttp_request_get_response_code(req);
-	if (http_status != 200)
-		fprintf(stderr, "Response line: %d\n", http_status);
+	// TODO
+	printf("EXEC response successfully received\n");
+}
 
-	string body;
-	while ((nread = evbuffer_remove(evhttp_request_get_input_buffer(req),
-	    	buffer, sizeof(buffer))))
-		body.append(buffer, nread);
+static string cmd_exec_encode()
+{
+	Ora::ExecInput oreq;
 
-	// fprintf(stderr, "Response bytes: %zu\n", body.size());
+	oreq.set_chain_id(Ora::ExecInput_ChainId_BITCOIN);
 
-	switch (opt_command) {
-	case CMD_EXEC:
-		cmd_exec_response(body);
-		break;
-	case CMD_INFO:
-		cmd_info_response(body);
-		break;
-	}
+	assert(oreq.IsInitialized() == true);
+
+	string s;
+	if (!oreq.SerializeToString(&s))
+		return "";
+
+	return s;
 }
 
 static void
@@ -321,48 +312,57 @@ static bool init_libssl(SSL_CTX **ssl_ctx_out, const string& crt,
 	return true;
 }
 
-static void cmd_stdout_response(const string& http_body)
+static void
+http_request_done(struct evhttp_request *req, void *ctx)
 {
-	ssize_t wrc = write(STDOUT_FILENO, &http_body[0], http_body.size());
-	assert(wrc == (ssize_t) http_body.size());
-}
+	char buffer[256];
+	int nread;
 
-static void cmd_info_response(const string& http_body)
-{
-	cmd_stdout_response(http_body);
-}
-
-static void cmd_exec_response(const string& http_body)
-{
-	Ora::ExecOutput oresp;
-	if (!oresp.ParseFromString(http_body)) {
-		fprintf(stderr, "Exec: protobuf decode failed\n");
-		exit(1);
+	if (req == NULL) {
+		/* If req is NULL, it means an error occurred, but
+		 * sadly we are mostly left guessing what the error
+		 * might have been.  We'll do our best... */
+		struct bufferevent *bev = (struct bufferevent *) ctx;
+		unsigned long oslerr;
+		int printed_err = 0;
+		int errcode = EVUTIL_SOCKET_ERROR();
+		fprintf(stderr, "some request failed - no idea which one though!\n");
+		/* Print out the OpenSSL error queue that libevent
+		 * squirreled away for us, if any. */
+		while ((oslerr = bufferevent_get_openssl_error(bev))) {
+			ERR_error_string_n(oslerr, buffer, sizeof(buffer));
+			fprintf(stderr, "%s\n", buffer);
+			printed_err = 1;
+		}
+		/* If the OpenSSL error queue was empty, maybe it was a
+		 * socket error; let's try printing that. */
+		if (! printed_err)
+			fprintf(stderr, "socket error = %s (%d)\n",
+				evutil_socket_error_to_string(errcode),
+				errcode);
+		return;
 	}
 
-	// TODO
-	printf("EXEC response successfully received\n");
+	int http_status = evhttp_request_get_response_code(req);
+	if (http_status != 200)
+		fprintf(stderr, "Response line: %d\n", http_status);
+
+	string body;
+	while ((nread = evbuffer_remove(evhttp_request_get_input_buffer(req),
+	    	buffer, sizeof(buffer))))
+		body.append(buffer, nread);
+
+	// fprintf(stderr, "Response bytes: %zu\n", body.size());
+
+	switch (opt_command) {
+	case CMD_EXEC:
+		cmd_exec_response(body);
+		break;
+	case CMD_INFO:
+		cmd_info_response(body);
+		break;
+	}
 }
-
-static string cmd_exec_encode()
-{
-	Ora::ExecInput oreq;
-
-	oreq.set_chain_id(Ora::ExecInput_ChainId_BITCOIN);
-
-	assert(oreq.IsInitialized() == true);
-
-	string s;
-	if (!oreq.SerializeToString(&s))
-		return "";
-
-	return s;
-}
-
-enum http_scheme_type {
-	HTTP,
-	HTTPS
-};
 
 static bool http_uri_parse(const string& uri,
 			   enum http_scheme_type& scheme,
