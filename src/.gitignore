@@ -3,4 +3,6 @@ sandbox
 orad
 gen-sum
 libsandbox.a
+oraapi.pb.cc
+oraapi.pb.h
 

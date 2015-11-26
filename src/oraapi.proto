@@ -1,0 +1,24 @@
+
+package Ora;
+
+message ExecInput {
+    enum ChainId {
+        NONE = 0;
+	BITCOIN = 1;
+	TESTNET3 = 2;
+    }
+
+    required ChainId chain_id = 1 [default = BITCOIN];
+    required bytes txid = 2;
+    optional bytes salt = 3;
+    repeated bytes input_hashes = 4;
+    repeated bytes input_data = 5;
+}
+
+message ExecOutput {
+    required uint32 return_code = 1;
+    optional uint64 n_insn = 2;
+    optional bytes output_data = 3;
+    required bytes sha256 = 4;
+}
+

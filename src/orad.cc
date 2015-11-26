@@ -20,6 +20,7 @@
 #include <signal.h>
 #include <univalue.h>
 #include <evhttp.h>
+#include "oraapi.pb.h"
 #include "sandbox.h"
 
 using namespace std;
@@ -27,6 +28,7 @@ using namespace std;
 #define DEFAULT_LISTEN_ADDR "0.0.0.0"
 #define DEFAULT_LISTEN_PORT 12014
 
+static const size_t MAX_HTTP_BODY = 16 * 1000 * 1000;
 static const uint32_t STACK_SIZE = 64 * 1024;
 
 
@@ -449,12 +451,12 @@ static int gdb_main_loop (uint32_t& gdbPort, machine& mach)
 static void saveProfileData(machine mach, string gmonFilename)
 {
 	FILE *f = fopen (gmonFilename.c_str(), "w");
-	
+
 	if (! f) {
 		perror("ERROR opening profile output data file");
 		exit (EXIT_FAILURE);
 	}
-	
+
 	// Write gmon file header.
 	fputs ("gmon", f);
 	int addr = 1, val = 0;
@@ -464,25 +466,25 @@ static void saveProfileData(machine mach, string gmonFilename)
 	fwrite (&val, 1, 4, f);
 	fwrite (&val, 1, 4, f);
 	fwrite (&val, 1, 4, f);
-	
+
 	// Write call graph records.
 	code = 1;
-	for (gprof_cg_map_t::iterator it = mach.gprof_cg_data.begin(); 
+	for (gprof_cg_map_t::iterator it = mach.gprof_cg_data.begin();
 	     it != mach.gprof_cg_data.end(); ++it)
 	{
 		arc = it->first;
 		val = it->second;
-		fwrite (&code, 1, 1, f); 
+		fwrite (&code, 1, 1, f);
 		fwrite (&arc, 1, 8, f);
 		fwrite (&val, 1, 4, f);
 	}
-	
+
 	// Write basic block counts.
 	code = 2;
 	fwrite (&code, 1, 1, f);
 	val = mach.gprof_bb_data.size();
 	fwrite (&val, 1, 4, f); // number of elements
-	for (gprof_bb_map_t::iterator it = mach.gprof_bb_data.begin(); 
+	for (gprof_bb_map_t::iterator it = mach.gprof_bb_data.begin();
 	     it != mach.gprof_bb_data.end(); ++it)
 	{
 		addr = it->first;
@@ -490,7 +492,7 @@ static void saveProfileData(machine mach, string gmonFilename)
 		fwrite (&addr, 1, 4, f);
 		fwrite (&val, 1, 4, f);
 	}
-	
+
 	fclose (f);
 }
 
@@ -510,6 +512,7 @@ void rpc_home(evhttp_request *req, void *)
 
 	std::string body = rv.write(2) + "\n";
 
+	// hash output
 	vector<unsigned char> md(SHA256_DIGEST_LENGTH);
 	SHA256((const unsigned char *) body.c_str(), body.size(), &md[0]);
 
@@ -523,12 +526,71 @@ void rpc_home(evhttp_request *req, void *)
 	evhttp_send_reply(req, HTTP_OK, "", OutBuf);
 };
 
+static bool read_http_input(evhttp_request *req, string& body)
+{
+	// absorb HTTP body input
+	struct evbuffer *buf = evhttp_request_get_input_buffer(req);
+
+	size_t buflen;
+	while ((buflen = evbuffer_get_length(buf))) {
+		if ((body.size() + buflen) > MAX_HTTP_BODY) {
+			evhttp_send_error(req, 400, "input too large");
+			return false;
+		}
+
+		vector<unsigned char> tmp_buf(buflen);
+		int n = evbuffer_remove(buf, &tmp_buf[0], buflen);
+		if (n > 0)
+			body.append((const char *) &tmp_buf[0], n);
+	}
+
+	return true;
+}
+
 void rpc_exec(evhttp_request *req, void *)
 {
+	// absorb HTTP body input
+	string body;
+	if (!read_http_input(req, body))
+		return;
+
+	// decode protobuf msg request
+	Ora::ExecInput oreq;
+	if (!oreq.ParseFromString(body) || !oreq.IsInitialized()) {
+		evhttp_send_error(req, 400, "protobuf decode failed");
+		return;
+	}
+
+	// no need for raw wire data anymore
+	body.clear();
+
+	// FIXME - actually do something...
+
+	// prep HTTP response output
 	auto *OutBuf = evhttp_request_get_output_buffer(req);
 	if (!OutBuf)
 		return;
-	evbuffer_add_printf(OutBuf, "<html><body><center><h1>Hello World!</h1></center></body></html>");
+
+	// prep protobuf msg response
+	Ora::ExecOutput oresp;
+	oresp.set_return_code(0);
+	oresp.set_sha256("froo");
+	if (!oresp.IsInitialized() || !oresp.SerializeToString(&body)) {
+		evhttp_send_error(req, 500, "internal checks failed");
+		return;
+	}
+
+	// hash output
+	vector<unsigned char> md(SHA256_DIGEST_LENGTH);
+	SHA256((const unsigned char *) body.c_str(), body.size(), &md[0]);
+
+	// HTTP headers
+	struct evkeyvalq * kv = evhttp_request_get_output_headers(req);
+	evhttp_add_header(kv, "Content-Type", "application/protobuf");
+	evhttp_add_header(kv, "Server", "orad/" PACKAGE_VERSION);
+	evhttp_add_header(kv, "ETag", HexStr(md).c_str());
+
+	// finalize, send everything
 	evhttp_send_reply(req, HTTP_OK, "", OutBuf);
 };
 
@@ -581,7 +643,7 @@ int main(int argc, char *argv[])
 
 	gatherOutput(mach, outFilename);
 
-	if (mach.profiling) 
+	if (mach.profiling)
 		saveProfileData(mach, gmonFilename);
 
 	return 0;
