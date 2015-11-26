@@ -26,7 +26,7 @@ static inline bool eqVec(const std::vector<unsigned char>& a,
 {
 	if (a.size() != b.size())
 		return false;
-	
+
 	return (memcmp(&a[0], &b[0], a.size()) == 0);
 }
 

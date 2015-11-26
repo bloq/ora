@@ -513,12 +513,12 @@ static int gdb_main_loop (uint32_t& gdbPort, machine& mach)
 static void saveProfileData(machine mach, string gmonFilename)
 {
 	FILE *f = fopen (gmonFilename.c_str(), "w");
-	
+
 	if (! f) {
 		perror("ERROR opening profile output data file");
 		exit (EXIT_FAILURE);
 	}
-	
+
 	// Write gmon file header.
 	fputs ("gmon", f);
 	int addr = 1, val = 0;
@@ -528,25 +528,25 @@ static void saveProfileData(machine mach, string gmonFilename)
 	fwrite (&val, 1, 4, f);
 	fwrite (&val, 1, 4, f);
 	fwrite (&val, 1, 4, f);
-	
+
 	// Write call graph records.
 	code = 1;
-	for (gprof_cg_map_t::iterator it = mach.gprof_cg_data.begin(); 
+	for (gprof_cg_map_t::iterator it = mach.gprof_cg_data.begin();
 	     it != mach.gprof_cg_data.end(); ++it)
 	{
 		arc = it->first;
 		val = it->second;
-		fwrite (&code, 1, 1, f); 
+		fwrite (&code, 1, 1, f);
 		fwrite (&arc, 1, 8, f);
 		fwrite (&val, 1, 4, f);
 	}
-	
+
 	// Write basic block counts.
 	code = 2;
 	fwrite (&code, 1, 1, f);
 	val = mach.gprof_bb_data.size();
 	fwrite (&val, 1, 4, f); // number of elements
-	for (gprof_bb_map_t::iterator it = mach.gprof_bb_data.begin(); 
+	for (gprof_bb_map_t::iterator it = mach.gprof_bb_data.begin();
 	     it != mach.gprof_bb_data.end(); ++it)
 	{
 		addr = it->first;
@@ -554,7 +554,7 @@ static void saveProfileData(machine mach, string gmonFilename)
 		fwrite (&addr, 1, 4, f);
 		fwrite (&val, 1, 4, f);
 	}
-	
+
 	fclose (f);
 }
 
@@ -580,7 +580,7 @@ int main(int argc, char *argv[])
 
 	gatherOutput(mach, outFilename);
 
-	if (mach.profiling) 
+	if (mach.profiling)
 		saveProfileData(mach, gmonFilename);
 
 	// return $r0, the exit status passed to _exit()

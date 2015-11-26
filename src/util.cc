@@ -124,7 +124,7 @@ bool mfile::open(int flags, mode_t mode, bool map)
 	data = mmap(NULL, st.st_size, mmap_prot, MAP_SHARED, fd, 0);
 	if (data == (void *)-1)
 		return false;
-	
+
 	return true;
 }
 

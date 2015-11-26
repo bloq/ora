@@ -180,8 +180,8 @@ sim_resume (machine& mach, unsigned long long cpu_budget)
 	    {
 	      /* This is a Form 3 instruction.  */
 	      int opcode = (inst >> 10 & 0xf);
-	      word flags[10] = { CC_EQ, ~CC_EQ, CC_LT, CC_GT, CC_LTU, CC_GTU, 
-				 CC_GT | CC_EQ, CC_LT | CC_EQ, CC_GTU | CC_EQ, 
+	      word flags[10] = { CC_EQ, ~CC_EQ, CC_LT, CC_GT, CC_LTU, CC_GTU,
+				 CC_GT | CC_EQ, CC_LT | CC_EQ, CC_GTU | CC_EQ,
 				 CC_LTU | CC_EQ };
 	      if (opcode < 10)
 		{
@@ -513,7 +513,7 @@ sim_resume (machine& mach, unsigned long long cpu_budget)
 		int b = inst & 0xf;
 		unsigned av = cpu.asregs.regs[a];
 		unsigned bv = cpu.asregs.regs[b];
-		unsigned long long r = 
+		unsigned long long r =
 		  (unsigned long long) av * (unsigned long long) bv;
 
 		TRACE("umul.x");
@@ -526,7 +526,7 @@ sim_resume (machine& mach, unsigned long long cpu_budget)
 		int b = inst & 0xf;
 		unsigned av = cpu.asregs.regs[a];
 		unsigned bv = cpu.asregs.regs[b];
-		signed long long r = 
+		signed long long r =
 		  (signed long long) av * (signed long long) bv;
 
 		TRACE("mul.x");
