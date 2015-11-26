@@ -21,6 +21,7 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 #include <errno.h>
 #include <argp.h>
 
@@ -56,6 +57,8 @@ enum command_type {
 
 static enum command_type opt_command = CMD_INFO;
 
+static void cmd_info_response(const string& http_body);
+static void cmd_exec_response(const string& http_body);
 
 /* Command line arguments and processing */
 const char *argp_program_version =
@@ -181,39 +184,25 @@ http_request_done(struct evhttp_request *req, void *ctx)
 		return;
 	}
 
-	fprintf(stderr, "Response line: %d\n",
-	    evhttp_request_get_response_code(req));
+	int http_status = evhttp_request_get_response_code(req);
+	if (http_status != 200)
+		fprintf(stderr, "Response line: %d\n", http_status);
 
 	string body;
 	while ((nread = evbuffer_remove(evhttp_request_get_input_buffer(req),
 	    	buffer, sizeof(buffer))))
 		body.append(buffer, nread);
 
-	fprintf(stderr, "Response bytes: %zu\n", body.size());
+	// fprintf(stderr, "Response bytes: %zu\n", body.size());
 
 	switch (opt_command) {
-	case CMD_EXEC: {
-		Ora::ExecOutput oresp;
-		if (!oresp.ParseFromString(body)) {
-			fprintf(stderr, "Exec: protobuf decode failed\n");
-			exit(1);
-		}
+	case CMD_EXEC:
+		cmd_exec_response(body);
+		break;
+	case CMD_INFO:
+		cmd_info_response(body);
 		break;
 	}
-
-	default:
-		fwrite(body.c_str(), body.size(), 1, stdout);
-		break;
-	}
-}
-
-static void
-syntax(void)
-{
-	fputs("Syntax:\n", stderr);
-	fputs("   oracli -url <https-url> [-data data-file.bin] [-ignore-cert] [-retries num] [-timeout sec] [-crt crt]\n", stderr);
-	fputs("Example:\n", stderr);
-	fputs("   oracli -url https://ip.appspot.com/\n", stderr);
 }
 
 static void
@@ -268,6 +257,29 @@ static int cert_verify_callback(X509_STORE_CTX *x509_ctx, void *arg)
 	return 0;
 }
 
+static void cmd_stdout_response(const string& http_body)
+{
+	ssize_t wrc = write(STDOUT_FILENO, &http_body[0], http_body.size());
+	assert(wrc == (ssize_t) http_body.size());
+}
+
+static void cmd_info_response(const string& http_body)
+{
+	cmd_stdout_response(http_body);
+}
+
+static void cmd_exec_response(const string& http_body)
+{
+	Ora::ExecOutput oresp;
+	if (!oresp.ParseFromString(http_body)) {
+		fprintf(stderr, "Exec: protobuf decode failed\n");
+		exit(1);
+	}
+
+	// TODO
+	printf("EXEC response successfully received\n");
+}
+
 static string cmd_exec_encode()
 {
 	Ora::ExecInput oreq;
@@ -295,7 +307,6 @@ main(int argc, char **argv)
 	string uri;
 	string url, data_file;
 	string scheme, host, path, query;
-	string cmd_name;
 	string crt("/etc/ssl/certs/ca-certificates.crt");
 	string body;
 	struct evbuffer *OutBuf = NULL;
@@ -317,11 +328,9 @@ main(int argc, char **argv)
 	int ret = 0;
 	enum { HTTP, HTTPS } type = HTTP;
 
-	url =  opt_url;
-	if (url.empty()) {
-		syntax();
+	url = opt_url;
+	if (url.empty())
 		goto error;
-	}
 
 	http_uri = evhttp_uri_parse(url.c_str());
 	if (http_uri == NULL) {
@@ -457,16 +466,6 @@ main(int argc, char **argv)
 	if (timeout >= 0) {
 		evhttp_connection_set_timeout(evcon, timeout);
 	}
-
-	switch (opt_command) {
-	case CMD_INFO:
-		cmd_name = "info";
-		break;
-	case CMD_EXEC:
-		cmd_name = "exec";
-		break;
-	}
-	fprintf(stderr, "Running command %s\n", cmd_name.c_str());
 
 	// Fire off the request
 	req = evhttp_request_new(http_request_done, bev);
