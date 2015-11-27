@@ -701,17 +701,30 @@ void rpc_unknown(evhttp_request *req, void *)
 	evhttp_send_error(req, 404, "not found");
 };
 
+static void pid_file_cleanup(void)
+{
+	if (opt_pid_file && *opt_pid_file)
+		unlink(opt_pid_file);
+}
+
+static void shutdown_signal(int signo)
+{
+	exit(1);
+}
+
 int main(int argc, char *argv[])
 {
+	// Parse command line
+	argp_parse(&argp, argc, argv, 0, NULL, NULL);
+
+	// Init libevent
 	if (!event_init())
 	{
 		std::cerr << "Failed to init libevent." << std::endl;
 		return -1;
 	}
 
-	/* Parsing of commandline parameters */
-	argp_parse(&argp, argc, argv, 0, NULL, NULL);
-
+	// Init HTTP server
 	char const SrvAddress[] = DEFAULT_LISTEN_ADDR;
 	std::unique_ptr<evhttp, decltype(&evhttp_free)> Server(evhttp_start(SrvAddress, DEFAULT_LISTEN_PORT), &evhttp_free);
 	if (!Server)
@@ -720,10 +733,23 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
+	// HTTP server URI callbacks
 	evhttp_set_cb(Server.get(), "/", rpc_home, nullptr);
 	evhttp_set_cb(Server.get(), "/exec", rpc_exec, nullptr);
 	evhttp_set_gencb(Server.get(), rpc_unknown, nullptr);
 
+	// Process auto-cleanup
+	signal(SIGINT, shutdown_signal);
+	atexit(pid_file_cleanup);
+
+	// Hold open PID file until process exits
+	int pid_fd = write_pid_file(opt_pid_file);
+	if (pid_fd < 0) {
+		std::cerr << "Failed to init pid file" << std::endl;
+		return -1;
+	}
+
+	// The Main Event -- execute event loop
 	if (event_dispatch() == -1)
 	{
 		std::cerr << "Failed to run message loop." << std::endl;

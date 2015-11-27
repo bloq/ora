@@ -164,6 +164,7 @@ extern std::vector<unsigned char> ParseHex(const char* psz);
 extern std::vector<unsigned char> ParseHex(const std::string& str);
 extern bool ReadDir(const std::string& pathname,
 		    std::vector<std::string>& dirNames);
+extern int write_pid_file(const char *pid_fn);
 
 template<typename T>
 std::string HexStr(const T itbegin, const T itend, bool fSpaces=false)
