@@ -26,6 +26,7 @@
 #include <endian.h>
 #include <signal.h>
 #include <argp.h>
+#include <syslog.h>
 #include <univalue.h>
 #include <evhttp.h>
 #include "oraapi.pb.h"
@@ -41,6 +42,7 @@ static const uint32_t STACK_SIZE = 64 * 1024;
 static const char *opt_pid_file = "/var/run/orad.pid";
 static uint32_t gdbPort = 0;
 static bool opt_profiling = false;
+static bool opt_daemon = false;
 static string gmonFilename;
 
 /* Command line arguments and processing */
@@ -56,6 +58,9 @@ static char doc[] =
 	"Oracle daemon\n";
 
 static struct argp_option options[] = {
+	{ "daemon", 1002, NULL, 0,
+	  "Daemonize; run server in background." },
+
 	{ "gdb-port", 'g', "port", 0,
 	  "Enable GDB remote debugging, on specified port" },
 
@@ -85,6 +90,10 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 	case 1001:
 		opt_profiling = true;
 		gmonFilename = arg;
+		break;
+
+	case 1002:
+		opt_daemon = true;
 		break;
 
 	default:
@@ -709,7 +718,7 @@ static void pid_file_cleanup(void)
 
 static void shutdown_signal(int signo)
 {
-	exit(1);
+	exit(EXIT_FAILURE);
 }
 
 int main(int argc, char *argv[])
@@ -721,7 +730,7 @@ int main(int argc, char *argv[])
 	if (!event_init())
 	{
 		std::cerr << "Failed to init libevent." << std::endl;
-		return -1;
+		return EXIT_FAILURE;
 	}
 
 	// Init HTTP server
@@ -730,7 +739,7 @@ int main(int argc, char *argv[])
 	if (!Server)
 	{
 		std::cerr << "Failed to init http server." << std::endl;
-		return -1;
+		return EXIT_FAILURE;
 	}
 
 	// HTTP server URI callbacks
@@ -738,24 +747,33 @@ int main(int argc, char *argv[])
 	evhttp_set_cb(Server.get(), "/exec", rpc_exec, nullptr);
 	evhttp_set_gencb(Server.get(), rpc_unknown, nullptr);
 
+	openlog("orad", LOG_PID, LOG_DAEMON);
+
 	// Process auto-cleanup
+	signal(SIGTERM, shutdown_signal);
 	signal(SIGINT, shutdown_signal);
 	atexit(pid_file_cleanup);
+
+	// Daemonize
+	if (opt_daemon && daemon(0, 0) < 0) {
+		syslog(LOG_ERR, "Failed to daemonize: %s", strerror(errno));
+		return EXIT_FAILURE;
+	}
 
 	// Hold open PID file until process exits
 	int pid_fd = write_pid_file(opt_pid_file);
 	if (pid_fd < 0) {
-		std::cerr << "Failed to init pid file" << std::endl;
-		return -1;
+		syslog(LOG_ERR, "Failed to init pid file");
+		return EXIT_FAILURE;
 	}
 
 	// The Main Event -- execute event loop
 	if (event_dispatch() == -1)
 	{
-		std::cerr << "Failed to run message loop." << std::endl;
-		return -1;
+		syslog(LOG_ERR, "Failed to run message loop.");
+		return EXIT_FAILURE;
 	}
 
-	return 0;
+	return EXIT_SUCCESS;
 }
 
