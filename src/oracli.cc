@@ -41,7 +41,6 @@
 using namespace std;
 
 static struct event_base *base;
-static int ignore_cert = 0;
 static std::string opt_url = DEFAULT_ENDPOINT;
 static bool found_command = false;
 
@@ -222,10 +221,6 @@ static int cert_verify_callback(X509_STORE_CTX *x509_ctx, void *arg)
 	int ok_so_far = 0;
 
 	X509 *server_cert = NULL;
-
-	if (ignore_cert) {
-		return 1;
-	}
 
 	ok_so_far = X509_verify_cert(x509_ctx);
 
@@ -483,7 +478,8 @@ main(int argc, char **argv)
 
 	uri = path;
 
-	init_libssl(&ssl_ctx, crt, host);
+	if (!init_libssl(&ssl_ctx, crt, host))
+		goto error;
 
 	// Create event base
 	base = event_base_new();
