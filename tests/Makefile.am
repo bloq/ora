@@ -5,14 +5,16 @@ TESTS = \
 	run-basic.sh \
 	run-exit.sh \
 	run-rtlib.sh \
-	run-sha256.sh
+	run-sha256.sh \
+	orad-tests.sh
 
 EXTRA_DIST = \
 	run-basic.sh \
 	run-exit.sh \
 	run-rtlib.sh \
 	run-sha256.sh \
-	random.data random.data.sum
+	random.data random.data.sum \
+	orad-tests.sh
 
 noinst_PROGRAMS = \
 	basic \
