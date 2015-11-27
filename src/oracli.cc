@@ -34,7 +34,7 @@
 #include <openssl/err.h>
 #include <openssl/rand.h>
 
-#include "oraapi.pb.h"
+#include "oraapi.h"
 
 #define DEFAULT_ENDPOINT "http://127.0.0.1:12014/"
 

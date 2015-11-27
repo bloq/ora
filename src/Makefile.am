@@ -19,7 +19,10 @@ sandbox_SOURCES = \
 	sandbox.cc
 sandbox_LDADD = libsandbox.a $(ELF_LIBS) $(CRYPTO_LIBS)
 
-liboraapi_a_SOURCES = oraapi.pb.cc oraapi.pb.h
+liboraapi_a_SOURCES = \
+	oraapi.pb.cc oraapi.pb.h \
+	oraapi.h \
+	libhttp.cc
 
 pbmaker_SOURCES = pbmaker.cc
 pbmaker_LDADD = liboraapi.a $(CRYPTO_LIBS) $(EVENT_LIBS) $(UNIVALUE_LIBS) $(PROTOBUF_LIBS)

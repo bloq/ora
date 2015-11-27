@@ -10,7 +10,7 @@
 #include <argp.h>
 #include <unistd.h>
 
-#include "oraapi.pb.h"
+#include "oraapi.h"
 
 using namespace std;
 

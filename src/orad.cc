@@ -29,7 +29,7 @@
 #include <syslog.h>
 #include <univalue.h>
 #include <evhttp.h>
-#include "oraapi.pb.h"
+#include "oraapi.h"
 #include "sandbox.h"
 
 using namespace std;
@@ -743,7 +743,8 @@ static void shutdown_signal(int signo)
 int main(int argc, char *argv[])
 {
 	// Parse command line
-	argp_parse(&argp, argc, argv, 0, NULL, NULL);
+	if (argp_parse(&argp, argc, argv, 0, NULL, NULL))
+		return EXIT_FAILURE;
 
 	// Init libevent
 	eb = event_base_new();
@@ -754,12 +755,9 @@ int main(int argc, char *argv[])
 
 	// Init HTTP server
 	std::unique_ptr<evhttp, decltype(&evhttp_free)> Server(evhttp_new(eb), &evhttp_free);
-	if (!Server) {
-		std::cerr << "Failed to init http server." << std::endl;
-		return EXIT_FAILURE;
-	}
-	if (evhttp_bind_socket(Server.get(), listenAddr.c_str(), listenPort) < 0) {
-		std::cerr << "Failed to bind http server." << std::endl;
+	if ((!Server) ||
+	    (evhttp_bind_socket(Server.get(), listenAddr.c_str(), listenPort) < 0)) {
+		std::cerr << "Failed to create & bind http server." << std::endl;
 		return EXIT_FAILURE;
 	}
 
@@ -783,10 +781,8 @@ int main(int argc, char *argv[])
 
 	// Hold open PID file until process exits
 	int pid_fd = write_pid_file(opt_pid_file);
-	if (pid_fd < 0) {
-		syslog(LOG_ERR, "Failed to init pid file");
+	if (pid_fd < 0)
 		return EXIT_FAILURE;
-	}
 
 	// The Main Event -- execute event loop
 	syslog(LOG_INFO, "starting");
