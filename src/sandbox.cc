@@ -34,19 +34,7 @@ bool loadRawData(machine& mach, const string& filename)
 		return false;
 
 	static unsigned int dataCount = 0;
-	char tmpstr[32];
-
-	// alloc new data memory range
-	sprintf(tmpstr, "data%u", dataCount++);
-	size_t sz = pf.st.st_size;
-	addressRange *rdr = new addressRange(tmpstr, sz);
-
-	// copy mmap'd data into local buffer
-	rdr->buf.assign((char *) pf.data, sz);
-	rdr->updateRoot();
-
-	// add to global memory map
-	return mach.mapInsert(rdr);
+	return mach.loadRawData(dataCount, pf.data, pf.st.st_size);
 }
 
 static void usage(const char *progname)

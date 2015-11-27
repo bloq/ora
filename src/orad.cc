@@ -126,22 +126,6 @@ static struct argp argp = { options, parse_opt, NULL, doc };
 
 
 
-bool loadRawData(machine& mach, unsigned int& dataCount, const string& data)
-{
-	char tmpstr[32];
-
-	// alloc new data memory range
-	sprintf(tmpstr, "data%u", dataCount++);
-	addressRange *rdr = new addressRange(tmpstr, data.size());
-
-	// copy mmap'd data into local buffer
-	rdr->buf.assign(data);
-	rdr->updateRoot();
-
-	// add to global memory map
-	return mach.mapInsert(rdr);
-}
-
 #if 0
 static void printMemMap(machine &mach)
 {
@@ -638,7 +622,7 @@ void rpc_exec(evhttp_request *req, void *)
 
 		// load raw, uninterpreted data bytes
 		} else {
-			bool rc = loadRawData(mach, dataCount, data);
+			bool rc = mach.loadRawData(dataCount, data);
 			if (!rc) {
 				evhttp_send_error(req, 409, "raw data load fail");
 				return;

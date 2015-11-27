@@ -5,6 +5,7 @@
  */
 
 #include <algorithm>
+#include <stdio.h>
 #include <string.h>
 #include "moxievm.h"
 
@@ -117,5 +118,22 @@ void machine::fillDescriptors(std::vector<struct mach_memmap_ent>& desc)
 
 		desc.push_back(mme);
 	}
+}
+
+bool machine::loadRawData(unsigned int& dataCount, const void *data,
+			  size_t data_len)
+{
+	char tmpstr[32];
+
+	// alloc new data memory range
+	sprintf(tmpstr, "data%u", dataCount++);
+	addressRange *rdr = new addressRange(tmpstr, data_len);
+
+	// copy mmap'd data into local buffer
+	rdr->buf.assign((char *)data, data_len);
+	rdr->updateRoot();
+
+	// add to global memory map
+	return mapInsert(rdr);
 }
 

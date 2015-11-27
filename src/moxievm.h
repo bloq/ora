@@ -99,6 +99,13 @@ public:
 	void fillDescriptors(std::vector<struct mach_memmap_ent>& desc);
 
 	bool loadElfBuffer(char *pf_data, size_t pf_size);
+	bool loadRawData(unsigned int& dataCount, const void *data,
+			 size_t data_len);
+	bool loadRawData(unsigned int& dataCount, const std::string& data) {
+		if (data.empty())
+			return false;
+		return loadRawData(dataCount, &data[0], data.size());
+	}
 
 private:
 	bool loadElfProgSection(Elf *e, GElf_Phdr *phdr, void *p);
