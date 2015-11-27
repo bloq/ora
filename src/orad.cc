@@ -45,6 +45,8 @@ static bool opt_profiling = false;
 static bool opt_daemon = false;
 static string gmonFilename;
 static struct event_base *eb = NULL;
+static string listenAddr = DEFAULT_LISTEN_ADDR;
+static unsigned short listenPort = DEFAULT_LISTEN_PORT;
 
 /* Command line arguments and processing */
 const char *argp_program_version =
@@ -67,6 +69,12 @@ static struct argp_option options[] = {
 
 	{ "gprof", 1001, "file", 0,
 	  "Enable gprof profiling, output to specified file" },
+
+	{ "listen-addr", 1003, "ADDRESS", 0,
+	  "Listen address (default: " DEFAULT_LISTEN_ADDR ")" },
+
+	{ "listen-port", 1004, "PORT", 0,
+	  "Listen port (default: 12014)" },
 
 	{ "pid-file", 'p', "file", 0,
 	  "File used for recording daemon PID, and multiple exclusion (default: /var/run/orad.pid)" },
@@ -95,6 +103,16 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state)
 
 	case 1002:
 		opt_daemon = true;
+		break;
+
+	case 1003:
+		listenAddr.assign(arg);
+		break;
+
+	case 1004:
+		listenPort = atoi(arg);
+		if (listenPort == 0)
+			argp_usage(state);
 		break;
 
 	default:
@@ -740,7 +758,7 @@ int main(int argc, char *argv[])
 		std::cerr << "Failed to init http server." << std::endl;
 		return EXIT_FAILURE;
 	}
-	if (evhttp_bind_socket(Server.get(), DEFAULT_LISTEN_ADDR, DEFAULT_LISTEN_PORT) < 0) {
+	if (evhttp_bind_socket(Server.get(), listenAddr.c_str(), listenPort) < 0) {
 		std::cerr << "Failed to bind http server." << std::endl;
 		return EXIT_FAILURE;
 	}
