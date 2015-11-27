@@ -15,6 +15,7 @@
 #include <fcntl.h>
 #include <string>
 #include <vector>
+#include <map>
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -97,23 +98,16 @@ static struct argp argp = { options, parse_opt, NULL, doc };
 
 
 
-bool loadRawData(machine& mach, const string& filename)
+bool loadRawData(machine& mach, unsigned int& dataCount, const string& data)
 {
-	// open and mmap input file
-	mfile pf(filename);
-	if (!pf.open(O_RDONLY))
-		return false;
-
-	static unsigned int dataCount = 0;
 	char tmpstr[32];
 
 	// alloc new data memory range
 	sprintf(tmpstr, "data%u", dataCount++);
-	size_t sz = pf.st.st_size;
-	addressRange *rdr = new addressRange(tmpstr, sz);
+	addressRange *rdr = new addressRange(tmpstr, data.size());
 
 	// copy mmap'd data into local buffer
-	rdr->buf.assign((char *) pf.data, sz);
+	rdr->buf.assign(data);
 	rdr->updateRoot();
 
 	// add to global memory map
@@ -571,26 +565,73 @@ void rpc_exec(evhttp_request *req, void *)
 	// no need for raw wire data anymore
 	body.clear();
 
+	// read input data, if any
+	map<string, string> hashCache;
+	for (int i = 0; i < oreq.input_data_size(); i++) {
+		vector<unsigned char> md(SHA256_DIGEST_LENGTH);
+		const string& data = oreq.input_data(i);
+		SHA256((const unsigned char *) data.c_str(),data.size(),&md[0]);
+		string hash((const char *) &md[0], md.size());
+		hashCache[hash] = data;
+	}
+
 	// init simulator
 	machine mach;
 	mach.profiling = opt_profiling;
 
 	// build simulator environment
+	bool haveElfProg = false;
+	unsigned int dataCount = 0;
+	for (int i = 0; i < oreq.input_hashes_size(); i++) {
+		// get hash from list
+		const string& data_hash = oreq.input_hashes(i);
+
+		// do we have this hash somewhere?
+		if (hashCache.count(data_hash) == 0) {
+			evhttp_send_error(req, 404, "input hash not found");
+			return;
+		}
+
+		// get data, based on hash
+		string& data = hashCache[data_hash];
+
+		// load Moxie ELF program
+		if (!haveElfProg && (data.size() > 4) &&
+		    data[0] == 0x7f &&
+		    data[1] == 'E' &&
+		    data[2] == 'L' &&
+		    data[3] == 'F') {
+			bool rc = loadElfBuffer(mach, (char *)&data[0], data.size());
+			if (!rc) {
+				evhttp_send_error(req, 409, "ELF program load fail");
+				return;
+			}
+			haveElfProg = true;
+
+		// load raw, uninterpreted data bytes
+		} else {
+			bool rc = loadRawData(mach, dataCount, data);
+			if (!rc) {
+				evhttp_send_error(req, 409, "raw data load fail");
+				return;
+			}
+		}
+	}
 
 	// execute simulator
 	if (gdbPort)
 		gdb_main_loop(mach);
 	else
 		sim_resume(mach);
+	if (mach.profiling)
+		saveProfileData(mach, gmonFilename);
 
+	// extract sim output buffer
 	string machOutputBuf;
 	if (!gatherOutput(mach, machOutputBuf)) {
 		evhttp_send_error(req, 409, "SIGBUS while gathering output");
 		return;
 	}
-
-	if (mach.profiling)
-		saveProfileData(mach, gmonFilename);
 
 	// prep protobuf msg response
 	Ora::ExecOutput oresp;

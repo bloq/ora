@@ -52,13 +52,13 @@ bool loadElfProgSection(machine& mach, Elf *e, GElf_Phdr *phdr, void *p)
 	return true;
 }
 
-static bool loadElfFile(machine& mach, mfile& pf)
+bool loadElfBuffer(machine& mach, char *pf_data, size_t pf_size)
 {
 	if ( elf_version ( EV_CURRENT ) == EV_NONE )
 		return false;
 
 	Elf *e;
-	if (( e = elf_memory((char *)pf.data, pf.st.st_size)) == NULL )
+	if (( e = elf_memory(pf_data, pf_size)) == NULL )
 		return false;
 
 	if ( elf_kind ( e ) != ELF_K_ELF )
@@ -95,7 +95,7 @@ static bool loadElfFile(machine& mach, mfile& pf)
 			continue;
 		}
 
-		if (!loadElfProgSection(mach, e, &phdr, pf.data))
+		if (!loadElfProgSection(mach, e, &phdr, pf_data))
 			goto err_out_elf;
 	}
 
@@ -105,6 +105,11 @@ static bool loadElfFile(machine& mach, mfile& pf)
 err_out_elf:
 	elf_end(e);
 	return false;
+}
+
+static bool loadElfFile(machine& mach, mfile& pf)
+{
+	return loadElfBuffer(mach, (char *)pf.data, pf.st.st_size);
 }
 
 bool loadElfProgram(machine& mach, const string& filename)

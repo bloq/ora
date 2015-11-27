@@ -153,6 +153,7 @@ public:
 };
 
 extern void sim_resume (machine& mach, unsigned long long cpu_budget = 0);
+extern bool loadElfBuffer(machine& mach, char *pf_data, size_t pf_size);
 extern bool loadElfProgram(machine& mach, const std::string& filename);
 extern bool loadElfHash(machine& mach, const std::string& hash,
 			const std::vector<std::string>& pathExec);
