@@ -192,48 +192,26 @@ static void addMapDescriptor(machine& mach)
 }
 #endif
 
-static void gatherOutput(machine& mach, const string& outFilename)
+static bool gatherOutput(machine& mach, string& outBuf)
 {
-	if (!outFilename.size())
-		return;
+	outBuf.clear();
 
 	uint32_t vaddr = mach.cpu.asregs.sregs[6];
 	uint32_t length = mach.cpu.asregs.sregs[7];
 	if (!vaddr || !length)
-		return;
+		return true;
 
 	char *p = (char *) mach.physaddr(vaddr, length);
 	if (!p) {
 		fprintf(stderr, "Sim exception %d (%s) upon output\n",
 			SIGBUS,
 			strsignal(SIGBUS));
-		exit(EXIT_FAILURE);
+		return false;
 	}
 
-	int fd;
-	if (outFilename == "-") {
-		fd = STDOUT_FILENO;
-	} else {
-		fd = open(outFilename.c_str(),
-			  O_WRONLY | O_CREAT | O_TRUNC, 0666);
-		if (fd < 0) {
-			perror(outFilename.c_str());
-			exit(EXIT_FAILURE);
-		}
-	}
+	outBuf.append(p, length);
 
-	while (length > 0) {
-		ssize_t bytes = write(fd, p, length);
-		if (bytes < 0) {
-			perror(outFilename.c_str());
-			exit(EXIT_FAILURE);
-		}
-
-		length -= bytes;
-		p += bytes;
-	}
-
-	close(fd);
+	return true;
 }
 
 static char lowNibbleToHex(int nibble)
@@ -592,7 +570,23 @@ void rpc_exec(evhttp_request *req, void *)
 	// no need for raw wire data anymore
 	body.clear();
 
-	// FIXME - actually do something...
+	// execute simulator
+	machine mach;
+	mach.profiling = opt_profiling;
+
+	if (gdbPort)
+		gdb_main_loop(mach);
+	else
+		sim_resume(mach);
+
+	string machOutputBuf;
+	if (!gatherOutput(mach, machOutputBuf)) {
+		evhttp_send_error(req, 409, "SIGBUS while gathering output");
+		return;
+	}
+
+	if (mach.profiling)
+		saveProfileData(mach, gmonFilename);
 
 	// prep protobuf msg response
 	Ora::ExecOutput oresp;
@@ -649,8 +643,7 @@ int main(int argc, char *argv[])
 	argp_parse(&argp, argc, argv, 0, NULL, NULL);
 
 	char const SrvAddress[] = DEFAULT_LISTEN_ADDR;
-	std::uint16_t SrvPort = DEFAULT_LISTEN_PORT;
-	std::unique_ptr<evhttp, decltype(&evhttp_free)> Server(evhttp_start(SrvAddress, SrvPort), &evhttp_free);
+	std::unique_ptr<evhttp, decltype(&evhttp_free)> Server(evhttp_start(SrvAddress, DEFAULT_LISTEN_PORT), &evhttp_free);
 	if (!Server)
 	{
 		std::cerr << "Failed to init http server." << std::endl;
@@ -661,26 +654,11 @@ int main(int argc, char *argv[])
 	evhttp_set_cb(Server.get(), "/exec", rpc_exec, nullptr);
 	evhttp_set_gencb(Server.get(), rpc_unknown, nullptr);
 
-	machine mach;
-	string outFilename;
-
-	mach.profiling = opt_profiling;
-
-	if (gdbPort)
-		gdb_main_loop(mach);
-	else
-		sim_resume(mach);
-
 	if (event_dispatch() == -1)
 	{
 		std::cerr << "Failed to run message loop." << std::endl;
 		return -1;
 	}
-
-	gatherOutput(mach, outFilename);
-
-	if (mach.profiling)
-		saveProfileData(mach, gmonFilename);
 
 	return 0;
 }
