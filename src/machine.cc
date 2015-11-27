@@ -6,7 +6,7 @@
 
 #include <algorithm>
 #include <string.h>
-#include "sandbox.h"
+#include "moxievm.h"
 
 void *machine::physaddr(uint32_t addr, size_t objLen, bool wantWrite)
 {

@@ -5,6 +5,7 @@ orad
 pbmaker
 gen-sum
 liboraapi.a
+libmoxievm.a
 libsandbox.a
 oraapi.pb.cc
 oraapi.pb.h

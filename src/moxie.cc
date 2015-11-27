@@ -11,7 +11,7 @@
 #include <signal.h>
 #include <errno.h>
 #include <endian.h>
-#include "sandbox.h"
+#include "moxievm.h"
 
 #define INLINE inline
 
