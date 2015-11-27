@@ -6,15 +6,10 @@
 
 #include <string>
 #include <vector>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>
-#include <unistd.h>
 #include <libelf.h>
 #include <gelf.h>
-#include <sys/mman.h>
 #include <stdio.h>
-#include "sandbox.h"
+#include "moxievm.h"
 
 #ifndef EM_MOXIE
 #define EM_MOXIE                223  /* Official Moxie */
@@ -26,7 +21,7 @@
 
 using namespace std;
 
-bool loadElfProgSection(machine& mach, Elf *e, GElf_Phdr *phdr, void *p)
+bool machine::loadElfProgSection(Elf *e, GElf_Phdr *phdr, void *p)
 {
 	bool writable = (phdr->p_flags & PF_W);
 	size_t sz = phdr->p_memsz;
@@ -46,13 +41,13 @@ bool loadElfProgSection(machine& mach, Elf *e, GElf_Phdr *phdr, void *p)
 	rdr->buf.resize(phdr->p_memsz);
 	rdr->updateRoot();
 
-	mach.memmap.push_back(rdr);
-	mach.sortMemMap();
+	memmap.push_back(rdr);
+	sortMemMap();
 
 	return true;
 }
 
-bool loadElfBuffer(machine& mach, char *pf_data, size_t pf_size)
+bool machine::loadElfBuffer(char *pf_data, size_t pf_size)
 {
 	if ( elf_version ( EV_CURRENT ) == EV_NONE )
 		return false;
@@ -72,12 +67,10 @@ bool loadElfBuffer(machine& mach, char *pf_data, size_t pf_size)
 	    (ehdr.e_ident[EI_DATA] != ELFDATA2LSB) ||
 	    ((ehdr.e_machine != EM_MOXIE)
 	     && (ehdr.e_machine != EM_MOXIE_OLD))) {
-		fprintf(stderr, "unsupported ELF binary type\n");
 		goto err_out_elf;
 	}
 
-	mach.startAddr = ehdr.e_entry;
-	fprintf(stderr, "ep %08lx\n", ehdr.e_entry);
+	startAddr = ehdr.e_entry;
 
 	size_t n;
 	if ( elf_getphdrnum (e , & n ) != 0)
@@ -90,12 +83,10 @@ bool loadElfBuffer(machine& mach, char *pf_data, size_t pf_size)
 			goto err_out_elf;
 
 		if (phdr.p_type != PT_LOAD) {
-			fprintf(stderr, "ignoring unknown p_type %lu\n",
-				(unsigned long) phdr.p_type);
 			continue;
 		}
 
-		if (!loadElfProgSection(mach, e, &phdr, pf_data))
+		if (!loadElfProgSection(e, &phdr, pf_data))
 			goto err_out_elf;
 	}
 
@@ -104,57 +95,6 @@ bool loadElfBuffer(machine& mach, char *pf_data, size_t pf_size)
 
 err_out_elf:
 	elf_end(e);
-	return false;
-}
-
-static bool loadElfFile(machine& mach, mfile& pf)
-{
-	return loadElfBuffer(mach, (char *)pf.data, pf.st.st_size);
-}
-
-bool loadElfProgram(machine& mach, const string& filename)
-{
-	mfile pf(filename);
-	if (!pf.open(O_RDONLY))
-		return false;
-
-	return loadElfFile(mach, pf);
-}
-
-bool loadElfHash(machine& mach, const string& hash,
-		 const std::vector<std::string>& pathExec)
-{
-	vector<unsigned char> digest = ParseHex(hash);
-
-	for (unsigned int i = 0; i < pathExec.size(); i++) {
-		const std::string& path = pathExec[i];
-
-		vector<string> dirNames;
-		if (!ReadDir(path, dirNames)) {
-			perror(path.c_str());
-			continue;
-		}
-
-		for (vector<string>::iterator it = dirNames.begin();
-		     it != dirNames.end(); it++) {
-			string filename = path + "/" + (*it);
-
-			mfile pf(filename);
-			if (!pf.open(O_RDONLY)) {
-				perror(filename.c_str());
-				continue;
-			}
-
-			sha256hash hash(pf.data, pf.st.st_size);
-
-			vector<unsigned char> tmpHash;
-			hash.final(tmpHash);
-
-			if (eqVec(digest, tmpHash))
-				return loadElfFile(mach, pf);
-		}
-	}
-
 	return false;
 }
 

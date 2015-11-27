@@ -8,6 +8,7 @@ noinst_LIBRARIES = libmoxievm.a libsandbox.a liboraapi.a
 AM_CXXFLAGS = -std=gnu++0x
 
 libmoxievm_a_SOURCES = \
+	elf.cc \
 	machine.cc \
 	moxie.h \
 	moxie.cc \
@@ -18,7 +19,7 @@ libsandbox_a_SOURCES = \
 	util.cc
 
 sandbox_SOURCES = \
-	elf.cc \
+	sandbox_elf.cc \
 	sandbox.cc
 sandbox_LDADD = libmoxievm.a libsandbox.a $(ELF_LIBS) $(CRYPTO_LIBS)
 
@@ -35,9 +36,6 @@ oracli_SOURCES = \
 oracli_LDADD = liboraapi.a $(CRYPTO_LIBS) $(EVENT_LIBS) $(UNIVALUE_LIBS) $(PROTOBUF_LIBS) $(SSL_LIBS)
 
 orad_SOURCES = \
-	elf.cc \
-	moxie.h \
-	moxie.cc \
 	orad.cc
 orad_LDADD = liboraapi.a libmoxievm.a libsandbox.a $(ELF_LIBS) $(CRYPTO_LIBS) $(EVENT_LIBS) $(UNIVALUE_LIBS) $(PROTOBUF_LIBS)
 

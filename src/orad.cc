@@ -629,7 +629,7 @@ void rpc_exec(evhttp_request *req, void *)
 		    data[1] == 'E' &&
 		    data[2] == 'L' &&
 		    data[3] == 'F') {
-			bool rc = loadElfBuffer(mach, (char *)&data[0], data.size());
+			bool rc = mach.loadElfBuffer((char *)&data[0], data.size());
 			if (!rc) {
 				evhttp_send_error(req, 409, "ELF program load fail");
 				return;

@@ -6,6 +6,8 @@
 #include <string>
 #include <vector>
 #include <string.h>
+#include <libelf.h>
+#include <gelf.h>
 #include "moxie.h"
 
 typedef std::unordered_map<uint32_t, uint32_t> gprof_bb_map_t;
@@ -95,6 +97,11 @@ public:
 	void sortMemMap();
 	bool mapInsert(addressRange *ar);
 	void fillDescriptors(std::vector<struct mach_memmap_ent>& desc);
+
+	bool loadElfBuffer(char *pf_data, size_t pf_size);
+
+private:
+	bool loadElfProgSection(Elf *e, GElf_Phdr *phdr, void *p);
 };
 
 extern void sim_resume (machine& mach, unsigned long long cpu_budget = 0);
