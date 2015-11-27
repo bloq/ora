@@ -124,6 +124,7 @@ static void printMemMap(machine &mach)
 			ar->name.c_str());
 	}
 }
+#endif
 
 static void addStackMem(machine& mach)
 {
@@ -185,7 +186,6 @@ static void addMapDescriptor(machine& mach)
 	// set SR #6 to now-initialized mapdesc start vaddr
 	mach.cpu.asregs.sregs[6] = ar->start;
 }
-#endif
 
 static bool gatherOutput(machine& mach, string& outBuf)
 {
@@ -617,6 +617,13 @@ void rpc_exec(evhttp_request *req, void *)
 			}
 		}
 	}
+
+	if (haveElfProg) {
+		addStackMem(mach);
+		addMapDescriptor(mach);
+	}
+
+	mach.cpu.asregs.regs[PC_REGNO] = mach.startAddr;
 
 	// execute simulator
 	if (gdbPort)
