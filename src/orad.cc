@@ -44,6 +44,7 @@ static uint32_t gdbPort = 0;
 static bool opt_profiling = false;
 static bool opt_daemon = false;
 static string gmonFilename;
+static struct event_base *eb = NULL;
 
 /* Command line arguments and processing */
 const char *argp_program_version =
@@ -718,7 +719,7 @@ static void pid_file_cleanup(void)
 
 static void shutdown_signal(int signo)
 {
-	exit(EXIT_FAILURE);
+	event_base_loopbreak(eb);
 }
 
 int main(int argc, char *argv[])
@@ -727,18 +728,20 @@ int main(int argc, char *argv[])
 	argp_parse(&argp, argc, argv, 0, NULL, NULL);
 
 	// Init libevent
-	if (!event_init())
-	{
+	eb = event_base_new();
+	if (!eb) {
 		std::cerr << "Failed to init libevent." << std::endl;
 		return EXIT_FAILURE;
 	}
 
 	// Init HTTP server
-	char const SrvAddress[] = DEFAULT_LISTEN_ADDR;
-	std::unique_ptr<evhttp, decltype(&evhttp_free)> Server(evhttp_start(SrvAddress, DEFAULT_LISTEN_PORT), &evhttp_free);
-	if (!Server)
-	{
+	std::unique_ptr<evhttp, decltype(&evhttp_free)> Server(evhttp_new(eb), &evhttp_free);
+	if (!Server) {
 		std::cerr << "Failed to init http server." << std::endl;
+		return EXIT_FAILURE;
+	}
+	if (evhttp_bind_socket(Server.get(), DEFAULT_LISTEN_ADDR, DEFAULT_LISTEN_PORT) < 0) {
+		std::cerr << "Failed to bind http server." << std::endl;
 		return EXIT_FAILURE;
 	}
 
@@ -768,12 +771,13 @@ int main(int argc, char *argv[])
 	}
 
 	// The Main Event -- execute event loop
-	if (event_dispatch() == -1)
-	{
+	syslog(LOG_INFO, "starting");
+	if (event_base_dispatch(eb) == -1) {
 		syslog(LOG_ERR, "Failed to run message loop.");
 		return EXIT_FAILURE;
 	}
 
+	syslog(LOG_INFO, "shutting down");
 	return EXIT_SUCCESS;
 }
 
