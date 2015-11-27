@@ -22,6 +22,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <openssl/sha.h>
+#include <endian.h>
 #include <signal.h>
 #include <argp.h>
 #include <univalue.h>
@@ -570,10 +571,13 @@ void rpc_exec(evhttp_request *req, void *)
 	// no need for raw wire data anymore
 	body.clear();
 
-	// execute simulator
+	// init simulator
 	machine mach;
 	mach.profiling = opt_profiling;
 
+	// build simulator environment
+
+	// execute simulator
 	if (gdbPort)
 		gdb_main_loop(mach);
 	else
@@ -590,10 +594,29 @@ void rpc_exec(evhttp_request *req, void *)
 
 	// prep protobuf msg response
 	Ora::ExecOutput oresp;
-	oresp.set_return_code(0);
-	oresp.set_sha256("froo");
-	assert(oresp.IsInitialized() == true);
+	uint32_t retcode = (mach.cpu.asregs.regs[2] & 0xff);
+	uint64_t insn_count = mach.cpu.asregs.insts;
+	oresp.set_return_code(retcode);
+	if (!machOutputBuf.empty())
+		oresp.set_output_data(machOutputBuf);
 
+	// create and hash pseudo-header
+	vector<unsigned char> md(SHA256_DIGEST_LENGTH);
+	SHA256_CTX phdr_hash;
+	SHA256_Init(&phdr_hash);
+
+	retcode = htole32(retcode);
+	insn_count = htole64(insn_count);
+	SHA256_Update(&phdr_hash, &retcode, sizeof(retcode));
+	SHA256_Update(&phdr_hash, &insn_count, sizeof(insn_count));
+	if (!machOutputBuf.empty())
+		SHA256_Update(&phdr_hash, &machOutputBuf[0],
+			      machOutputBuf.size());
+	SHA256_Final(&md[0], &phdr_hash);
+	oresp.set_sha256(&md[0], md.size());
+
+	// serialize output response to string
+	assert(oresp.IsInitialized() == true);
 	bool rc = oresp.SerializeToString(&body);
 	assert(rc == true);
 	assert(body.size() > 0);
@@ -604,7 +627,6 @@ void rpc_exec(evhttp_request *req, void *)
 	string clen_str(tmpbuf);
 
 	// hash output
-	vector<unsigned char> md(SHA256_DIGEST_LENGTH);
 	SHA256((const unsigned char *) body.c_str(), body.size(), &md[0]);
 
 	// HTTP headers
