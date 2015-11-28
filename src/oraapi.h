@@ -15,7 +15,7 @@
 namespace Ora {
 
 class Client {
-public:
+private:
 	struct event_base *base;
 	struct evhttp_connection *evcon;
 	struct bufferevent *bev;
@@ -26,6 +26,7 @@ public:
 	SSL_CTX *ssl_ctx;
 	SSL *ssl;
 
+public:
 	Client(struct event_base *base_, const std::string& crt_path_ = ORA_DEF_CRT_PATH) {
 		base = base_;
 		evcon = NULL;
@@ -41,6 +42,8 @@ public:
 			SSL_CTX_free(ssl_ctx);
 		if (evcon)
 			evhttp_connection_free(evcon);
+
+		// Do not free: base, bev
 	}
 
 	bool open(const std::string& endpoint_url);
