@@ -17,6 +17,8 @@
 
 static FILE *tracefile = stderr;
 
+namespace Moxie {
+
 /* Extract the signed 10-bit offset from a 16-bit branch
    instruction.  */
 #define INST2OFFSET(o) ((((signed short)((o & ((1<<10)-1))<<6))>>6)<<1)
@@ -941,3 +943,4 @@ sim_resume (machine& mach, unsigned long long cpu_budget)
   cpu.asregs.insts += insts;		/* instructions done ... */
 }
 
+} // namespace Moxie

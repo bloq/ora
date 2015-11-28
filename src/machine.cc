@@ -9,6 +9,8 @@
 #include <string.h>
 #include "moxievm.h"
 
+namespace Moxie {
+
 void *machine::physaddr(uint32_t addr, size_t objLen, bool wantWrite)
 {
 	for (unsigned int i = 0; i < memmap.size(); i++) {
@@ -137,3 +139,4 @@ bool machine::loadRawData(unsigned int& dataCount, const void *data,
 	return mapInsert(rdr);
 }
 
+} // namespace Moxie

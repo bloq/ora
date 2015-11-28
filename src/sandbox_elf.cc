@@ -26,12 +26,12 @@
 
 using namespace std;
 
-static bool loadElfFile(machine& mach, mfile& pf)
+static bool loadElfFile(Moxie::machine& mach, mfile& pf)
 {
 	return mach.loadElfBuffer((char *)pf.data, pf.st.st_size);
 }
 
-bool loadElfProgram(machine& mach, const string& filename)
+bool loadElfProgram(Moxie::machine& mach, const string& filename)
 {
 	mfile pf(filename);
 	if (!pf.open(O_RDONLY))
@@ -40,7 +40,7 @@ bool loadElfProgram(machine& mach, const string& filename)
 	return loadElfFile(mach, pf);
 }
 
-bool loadElfHash(machine& mach, const string& hash,
+bool loadElfHash(Moxie::machine& mach, const string& hash,
 		 const std::vector<std::string>& pathExec)
 {
 	vector<unsigned char> digest = ParseHex(hash);

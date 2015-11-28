@@ -22,6 +22,7 @@
 #include "sandbox.h"
 
 using namespace std;
+using namespace Moxie;
 
 static const uint32_t STACK_SIZE = 64 * 1024;
 

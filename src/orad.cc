@@ -33,6 +33,7 @@
 #include "sandbox.h"
 
 using namespace std;
+using namespace Moxie;
 
 #define DEFAULT_LISTEN_ADDR "0.0.0.0"
 #define DEFAULT_LISTEN_PORT 12014

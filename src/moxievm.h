@@ -13,6 +13,8 @@
 typedef std::unordered_map<uint32_t, uint32_t> gprof_bb_map_t;
 typedef std::unordered_map<uint64_t, uint32_t> gprof_cg_map_t;
 
+namespace Moxie {
+
 enum {
 	MACH_PAGE_SIZE = 4096,
 	MACH_PAGE_MASK = (MACH_PAGE_SIZE-1),
@@ -112,5 +114,7 @@ private:
 };
 
 extern void sim_resume (machine& mach, unsigned long long cpu_budget = 0);
+
+} // namespace Moxie
 
 #endif // __MOXIEVM_H__

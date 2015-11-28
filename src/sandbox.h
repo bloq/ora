@@ -62,9 +62,9 @@ public:
 	bool open(int flags, mode_t mode = 0, bool map = true);
 };
 
-extern bool loadElfBuffer(machine& mach, char *pf_data, size_t pf_size);
-extern bool loadElfProgram(machine& mach, const std::string& filename);
-extern bool loadElfHash(machine& mach, const std::string& hash,
+extern bool loadElfBuffer(Moxie::machine& mach, char *pf_data, size_t pf_size);
+extern bool loadElfProgram(Moxie::machine& mach, const std::string& filename);
+extern bool loadElfHash(Moxie::machine& mach, const std::string& hash,
 			const std::vector<std::string>& pathExec);
 
 extern signed char HexDigit(char c);

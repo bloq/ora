@@ -21,6 +21,8 @@
 
 using namespace std;
 
+namespace Moxie {
+
 bool machine::loadElfProgSection(Elf *e, GElf_Phdr *phdr, void *p)
 {
 	bool writable = (phdr->p_flags & PF_W);
@@ -97,4 +99,6 @@ err_out_elf:
 	elf_end(e);
 	return false;
 }
+
+} // namespace Moxie
 
