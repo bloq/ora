@@ -74,6 +74,9 @@ int main (int argc, char *argv[])
 	rc32 = test_simple_exec(oc, "basic");
 	assert(rc32 == 0);
 
+	rc32 = test_simple_exec(oc, "rtlib-test");
+	assert(rc32 == 0);
+
 	return 0;
 }
 
