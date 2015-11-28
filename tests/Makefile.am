@@ -27,7 +27,7 @@ noinst_PROGRAMS = \
 	orad-test-client
 
 orad_test_client_SOURCES = orad-test-client.cc
-orad_test_client_LDADD = ../src/liboraapi.a $(CRYPTO_LIBS) $(EVENT_LIBS) $(UNIVALUE_LIBS) $(PROTOBUF_LIBS) $(SSL_LIBS)
+orad_test_client_LDADD = ../src/liboraapi.a ../src/libsandbox.a $(CRYPTO_LIBS) $(EVENT_LIBS) $(UNIVALUE_LIBS) $(PROTOBUF_LIBS) $(SSL_LIBS)
 
 basic_SOURCES = basic.c
 

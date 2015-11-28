@@ -335,6 +335,15 @@ void execInputAdd(ExecInput& ei, const std::string& data)
 	ei.add_input_data(data);
 }
 
+void execInputAdd(ExecInput& ei, const void *data, size_t data_len)
+{
+	vector<unsigned char> md(SHA256_DIGEST_LENGTH);
+	SHA256((const unsigned char *) data, data_len, &md[0]);
+
+	ei.add_input_hashes(&md[0], md.size());
+	ei.add_input_data(data, data_len);
+}
+
 void init_library()
 {
 	// Initialize OpenSSL

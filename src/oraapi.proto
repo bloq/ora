@@ -13,6 +13,7 @@ message ExecInput {
     optional bytes salt = 3;
     repeated bytes input_hashes = 4;
     repeated bytes input_data = 5;
+    required bool want_output = 6 [default = false];
 }
 
 message ExecOutput {

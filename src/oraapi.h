@@ -53,6 +53,7 @@ public:
 };
 
 extern void execInputAdd(ExecInput& ei, const std::string& data);
+extern void execInputAdd(ExecInput& ei, const void *data, size_t data_len);
 extern void init_library();
 
 } // namespace Ora

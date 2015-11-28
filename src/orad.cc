@@ -647,7 +647,7 @@ void rpc_exec(evhttp_request *req, void *)
 
 	// extract sim output buffer
 	string machOutputBuf;
-	if (!gatherOutput(mach, machOutputBuf)) {
+	if (oreq.want_output() && !gatherOutput(mach, machOutputBuf)) {
 		evhttp_send_error(req, 409, "SIGBUS while gathering output");
 		return;
 	}
