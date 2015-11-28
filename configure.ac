@@ -19,10 +19,20 @@ AM_PROG_AS
 AC_PATH_TOOL(AR, ar)
 AC_PATH_TOOL(RANLIB, ranlib)
 AC_PATH_TOOL(STRIP, strip)
-AC_CHECK_PROG(MOX_AS, moxiebox-as, moxiebox-as)
-AC_CHECK_PROG(MOX_AR, moxiebox-ar, moxiebox-ar)
-AC_CHECK_PROG(MOX_GCC, moxiebox-gcc, moxiebox-gcc)
+AC_CHECK_PROG(MOX_AS, moxiebox-as, moxiebox-as, no)
+AC_CHECK_PROG(MOX_AR, moxiebox-ar, moxiebox-ar, no)
+AC_CHECK_PROG(MOX_GCC, moxiebox-gcc, moxiebox-gcc, no)
 PKG_PROG_PKG_CONFIG
+
+if test x"$MOX_AR" = x"no"; then
+    AC_MSG_ERROR([moxiebox-ar is required to build this package])
+fi
+if test x"$MOX_AS" = x"no"; then
+    AC_MSG_ERROR([moxiebox-as is required to build this package])
+fi
+if test x"$MOX_GCC" = x"no"; then
+    AC_MSG_ERROR([moxiebox-gcc is required to build this package])
+fi
 
 AC_LANG_PUSH([C++])
 
