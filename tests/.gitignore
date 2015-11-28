@@ -5,6 +5,8 @@ exit1
 sha256-test
 rtlib-test
 
+orad-test-client
+
 *.log
 *.trs
 

@@ -1,6 +1,8 @@
 
 AM_TESTS_ENVIRONMENT = TOP_SRCDIR=$(top_srcdir)
 
+AM_CXXFLAGS = -std=gnu++0x -I$(top_srcdir)/src
+
 TESTS = \
 	run-basic.sh \
 	run-exit.sh \
@@ -21,7 +23,11 @@ noinst_PROGRAMS = \
 	exit0 \
 	exit1 \
 	rtlib-test \
-	sha256-test
+	sha256-test \
+	orad-test-client
+
+orad_test_client_SOURCES = orad-test-client.cc
+orad_test_client_LDADD = ../src/liboraapi.a $(CRYPTO_LIBS) $(EVENT_LIBS) $(UNIVALUE_LIBS) $(PROTOBUF_LIBS) $(SSL_LIBS)
 
 basic_SOURCES = basic.c
 

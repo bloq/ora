@@ -47,10 +47,12 @@ public:
 	bool call(const std::string& path, bool method_post,
 		  const std::string& in_data,
 		  std::string& out_data);
+
 	bool info(UniValue& meta);
 	bool exec(const ExecInput& ei, ExecOutput& eo);
 };
 
+extern void execInputAdd(ExecInput& ei, const std::string& data);
 extern void init_library();
 
 } // namespace Ora

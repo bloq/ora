@@ -35,7 +35,14 @@ then
 	exit 1
 fi
 
-# TODO
+RETVAL=0
+
+./orad-test-client
+if [ $? -ne 0 ]
+then
+	echo "Orad test client failed."
+	RETVAL=1
+fi
 
 #
 # Daemon shutdown
@@ -62,4 +69,5 @@ then
 	exit 1
 fi
 
-exit 0
+exit $RETVAL
+

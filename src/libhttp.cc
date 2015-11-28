@@ -5,6 +5,7 @@
 #include <event2/event.h>
 #include <event2/bufferevent.h>
 #include <event2/bufferevent_ssl.h>
+#include <openssl/sha.h>
 #include <openssl/rand.h>
 #include <openssl/err.h>
 #include "oraapi.h"
@@ -274,7 +275,7 @@ bool Client::open(const std::string& endpoint_url)
 }
 
 
-bool Client::call(const std::string& uri, bool method_post, 
+bool Client::call(const std::string& uri, bool method_post,
                   const std::string& in_data, std::string& out_data)
 {
 	struct http_req_context ctx;
@@ -323,6 +324,15 @@ bool Client::exec(const ExecInput& ei, ExecOutput& eo)
 		return false;
 
 	return true;
+}
+
+void execInputAdd(ExecInput& ei, const std::string& data)
+{
+	vector<unsigned char> md(SHA256_DIGEST_LENGTH);
+	SHA256((const unsigned char *) &data[0], data.size(), &md[0]);
+
+	ei.add_input_hashes(&md[0], md.size());
+	ei.add_input_data(data);
 }
 
 void init_library()
