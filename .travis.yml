@@ -29,6 +29,13 @@ addons:
       - libelf-dev
       - libssl-dev
 
+install:
+  - if [ -n "$PPA" ]; then travis_retry sudo add-apt-repository "$PPA" -y; fi
+  - if [ -n "$DPKG_ADD_ARCH" ]; then sudo dpkg --add-architecture "$DPKG_ADD_ARCH" ; fi
+  - travis_retry sudo apt-get update
+  - travis_retry sudo apt-get install libevent-extra
+  - if [ -n "$PACKAGES" ]; then travis_retry sudo apt-get install --no-install-recommends --no-upgrade -qq $PACKAGES; fi
+
 before_script:
   - wget http://gtf.org/garzik/bitcoin/moxiebox-root-20150918.tar.gz
   - tar -xzvf moxiebox-root-20150918.tar.gz
