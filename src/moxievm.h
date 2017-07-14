@@ -102,11 +102,13 @@ public:
 
 	bool loadElfBuffer(char *pf_data, size_t pf_size);
 	bool loadRawData(unsigned int& dataCount, const void *data,
-			 size_t data_len);
-	bool loadRawData(unsigned int& dataCount, const std::string& data) {
+			 size_t data_len, const std::string& sectionName = "");
+	bool loadRawData(unsigned int& dataCount, const std::string& data,
+			 const std::string& sectionName = "") {
 		if (data.empty())
 			return false;
-		return loadRawData(dataCount, &data[0], data.size());
+		return loadRawData(dataCount, &data[0], data.size(),
+				   sectionName);
 	}
 
 private:

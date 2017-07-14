@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
 #include "moxievm.h"
 
 namespace Moxie {
@@ -122,13 +123,34 @@ void machine::fillDescriptors(std::vector<struct mach_memmap_ent>& desc)
 	}
 }
 
-bool machine::loadRawData(unsigned int& dataCount, const void *data,
-			  size_t data_len)
+static const size_t SECTION_NAME_MAX = 32 - 1;
+
+static bool validSectionName(const std::string& name)
 {
-	char tmpstr[32];
+	if (name.empty())
+		return false;
+	if (name.size() > SECTION_NAME_MAX)
+		return false;
+	for (size_t i = 0; i < name.size(); i++)
+		if (!isalnum(name[i]))
+			return false;
+	return true;
+}
+
+bool machine::loadRawData(unsigned int& dataCount, const void *data,
+			  size_t data_len, const std::string& sectionName)
+{
+	char tmpstr[SECTION_NAME_MAX + 1];
+
+	if (sectionName.empty())
+		sprintf(tmpstr, "data%u", dataCount);
+	else if (validSectionName(sectionName))
+		strcpy(tmpstr, sectionName.c_str());
+	else
+		return false;
+	dataCount++;
 
 	// alloc new data memory range
-	sprintf(tmpstr, "data%u", dataCount++);
 	addressRange *rdr = new addressRange(tmpstr, data_len);
 
 	// copy mmap'd data into local buffer
