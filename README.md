@@ -17,8 +17,8 @@ This program is built using the "moxiebox" target in upstream binutils
 and gcc.  A reduced (C-only) gcc toolchain is therefore available for
 immediate use by developers.
 
-You will need to build and install moxie binutils+gcc cross-compiler
-toolset:
+You will need to build and install moxie architecture
+binutils+gcc cross-compiler toolset:
 
 ```bash
     cd contrib
