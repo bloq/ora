@@ -33,6 +33,8 @@ addons:
       - libssl-dev
       - libevent-dev
       - libmpc-dev
+      - libprotobuf-dev
+      - protobuf-compiler
 
 install:
   - if [ -n "$PPA" ]; then travis_retry sudo add-apt-repository "$PPA" -y; fi
