@@ -246,6 +246,8 @@ sim_resume (machine& mach, unsigned long long cpu_budget)
 
 		    TRACE("ssr");
 		    switch (sreg) {
+
+		    /* Return Buffer */
 		    case 6:	/* sim return buf addr */
 			if (!mach.physaddr(sval, 1))
 		  		cpu.asregs.exception = SIGBUS;
@@ -259,12 +261,30 @@ sim_resume (machine& mach, unsigned long long cpu_budget)
 			else
 		        	cpu.asregs.sregs[sreg] = sval;
 		    	break;
+
+		    /* State Buffer */
+		    case 8:	/* sim state buf addr */
+			if (!mach.physaddr(sval, 1))
+		  		cpu.asregs.exception = SIGBUS;
+			else
+		        	cpu.asregs.sregs[sreg] = sval;
+		    	break;
+		    case 9:	/* sim state buf length */
+			if (!cpu.asregs.sregs[8] ||
+			    !mach.physaddr(cpu.asregs.sregs[8], sval))
+		  		cpu.asregs.exception = SIGBUS;
+			else
+		        	cpu.asregs.sregs[sreg] = sval;
+		    	break;
+
+		    /* Default: assign to register buf with special handling */
 		    default:
 		        cpu.asregs.sregs[sreg] = sval;
 		    	break;
 		    }
 		  }
 		  break;
+
 		default:
 		  TRACE("SIGILL2");
 		  cpu.asregs.exception = SIGILL;

@@ -46,7 +46,13 @@ The program prepares its output in a contiguous memory buffer.  The
 pointer (virtual address) to this buffer is stored in special
 register #6.  The length of the buffer is stored in special register #7.
 
-The setreturn() function handles this task.
+The setreturn() wrapper function handles this task in C programs.
+
+A second output buffer area, the State Buffer, is also optionally
+output from the program to its external environment.  The program
+prepares its State also as a contiguous memory buffer.  The pointer
+(virtual address) to this buffer is stored in special register #8.
+The length of the buffer is stored in special register #9.
 
 
 ABI Summary

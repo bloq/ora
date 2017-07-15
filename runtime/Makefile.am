@@ -4,6 +4,7 @@ noinst_LIBRARIES = libsandboxrt.a
 libsandboxrt_a_SOURCES = \
 	crt0.S \
 	setreturn.S \
+	setstate.S \
 	sys-_exit.S \
 	sys-mmap.S \
 	memchr.c \
@@ -30,6 +31,7 @@ MOX_LIB_OBJS = \
 	memmap.o \
 	memset.o \
 	setreturn.o \
+	setstate.o \
 	sha256.o \
 	strchr.o \
 	strcmp.o \
@@ -45,6 +47,8 @@ libsandboxrt.a: $(MOX_LIB_OBJS)
 		$(MOX_LIB_OBJS)
 
 crt0.o:	crt0.S
+	$(MOX_AS) -o $@ $<
+setstate.o:	setstate.S
 	$(MOX_AS) -o $@ $<
 setreturn.o:	setreturn.S
 	$(MOX_AS) -o $@ $<
