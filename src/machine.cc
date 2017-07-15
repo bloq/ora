@@ -5,10 +5,13 @@
  */
 
 #include <algorithm>
+#include <vector>
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
 #include "moxievm.h"
+
+using namespace std;
 
 namespace Moxie {
 
@@ -159,6 +162,67 @@ bool machine::loadRawData(unsigned int& dataCount, const void *data,
 
 	// add to global memory map
 	return mapInsert(rdr);
+}
+
+void machine::addStackMem()
+{
+	// alloc r/w memory range
+	addressRange *rdr = new addressRange("stack", MACH_STACK_SIZE);
+
+	rdr->buf.resize(MACH_STACK_SIZE);
+	rdr->updateRoot();
+	rdr->readOnly = false;
+
+	// add memory range to global memory map
+	mapInsert(rdr);
+
+	// set SR #7 to now-initialized stack vaddr
+	cpu.asregs.sregs[7] = rdr->end;
+}
+
+void machine::addMapDescriptor()
+{
+	// fill list from existing memory map
+	vector<struct mach_memmap_ent> desc;
+	fillDescriptors(desc);
+
+	// add entry for the mapdesc range to be added to memory map
+	struct mach_memmap_ent mme_self;
+	memset(&mme_self, 0, sizeof(mme_self));
+	desc.push_back(mme_self);
+
+	// add blank entry for list terminator
+	struct mach_memmap_ent mme_end;
+	memset(&mme_end, 0, sizeof(mme_end));
+	desc.push_back(mme_end);
+
+	// calc total region size
+	size_t sz = sizeof(mme_end) * desc.size();
+
+	// manually fill in mapdesc range descriptor
+	mme_self.length = sz;
+	strcpy(mme_self.tags, "ro,mapdesc,");
+
+	// build entry for global memory map
+	addressRange *ar = new addressRange("mapdesc", sz);
+
+	// allocate space for descriptor array
+	ar->buf.resize(sz);
+	ar->updateRoot();
+
+	// copy 'desc' array into allocated memory space
+	unsigned int i = 0;
+	for (vector<struct mach_memmap_ent>::iterator it = desc.begin();
+	     it != desc.end(); it++, i++) {
+		struct mach_memmap_ent& mme = (*it);
+		memcpy(&ar->buf[i * sizeof(mme)], &mme, sizeof(mme));
+	}
+
+	// add memory range to global memory map
+	mapInsert(ar);
+
+	// set SR #6 to now-initialized mapdesc start vaddr
+	cpu.asregs.sregs[6] = ar->start;
 }
 
 } // namespace Moxie

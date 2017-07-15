@@ -39,7 +39,6 @@ using namespace Moxie;
 #define DEFAULT_LISTEN_PORT 12014
 
 static const size_t MAX_HTTP_BODY = 16 * 1000 * 1000;
-static const uint32_t STACK_SIZE = 64 * 1024;
 static const char *opt_pid_file = "/var/run/orad.pid";
 static uint32_t gdbPort = 0;
 static bool opt_profiling = false;
@@ -138,67 +137,6 @@ static void printMemMap(machine &mach)
 	}
 }
 #endif
-
-static void addStackMem(machine& mach)
-{
-	// alloc r/w memory range
-	addressRange *rdr = new addressRange("stack", STACK_SIZE);
-
-	rdr->buf.resize(STACK_SIZE);
-	rdr->updateRoot();
-	rdr->readOnly = false;
-
-	// add memory range to global memory map
-	mach.mapInsert(rdr);
-
-	// set SR #7 to now-initialized stack vaddr
-	mach.cpu.asregs.sregs[7] = rdr->end;
-}
-
-static void addMapDescriptor(machine& mach)
-{
-	// fill list from existing memory map
-	vector<struct mach_memmap_ent> desc;
-	mach.fillDescriptors(desc);
-
-	// add entry for the mapdesc range to be added to memory map
-	struct mach_memmap_ent mme_self;
-	memset(&mme_self, 0, sizeof(mme_self));
-	desc.push_back(mme_self);
-
-	// add blank entry for list terminator
-	struct mach_memmap_ent mme_end;
-	memset(&mme_end, 0, sizeof(mme_end));
-	desc.push_back(mme_end);
-
-	// calc total region size
-	size_t sz = sizeof(mme_end) * desc.size();
-
-	// manually fill in mapdesc range descriptor
-	mme_self.length = sz;
-	strcpy(mme_self.tags, "ro,mapdesc,");
-
-	// build entry for global memory map
-	addressRange *ar = new addressRange("mapdesc", sz);
-
-	// allocate space for descriptor array
-	ar->buf.resize(sz);
-	ar->updateRoot();
-
-	// copy 'desc' array into allocated memory space
-	unsigned int i = 0;
-	for (vector<struct mach_memmap_ent>::iterator it = desc.begin();
-	     it != desc.end(); it++, i++) {
-		struct mach_memmap_ent& mme = (*it);
-		memcpy(&ar->buf[i * sizeof(mme)], &mme, sizeof(mme));
-	}
-
-	// add memory range to global memory map
-	mach.mapInsert(ar);
-
-	// set SR #6 to now-initialized mapdesc start vaddr
-	mach.cpu.asregs.sregs[6] = ar->start;
-}
 
 static bool gatherOutput(machine& mach, string& outBuf)
 {
@@ -632,8 +570,8 @@ void rpc_exec(evhttp_request *req, void *)
 	}
 
 	if (haveElfProg) {
-		addStackMem(mach);
-		addMapDescriptor(mach);
+		mach.addStackMem();
+		mach.addMapDescriptor();
 	}
 
 	mach.cpu.asregs.regs[PC_REGNO] = mach.startAddr;

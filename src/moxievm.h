@@ -18,6 +18,8 @@ namespace Moxie {
 enum {
 	MACH_PAGE_SIZE = 4096,
 	MACH_PAGE_MASK = (MACH_PAGE_SIZE-1),
+
+	MACH_STACK_SIZE = 64 * 1024,
 };
 
 struct mach_memmap_ent {
@@ -110,6 +112,9 @@ public:
 		return loadRawData(dataCount, &data[0], data.size(),
 				   sectionName);
 	}
+
+	void addStackMem();
+	void addMapDescriptor();
 
 private:
 	bool loadElfProgSection(Elf *e, GElf_Phdr *phdr, void *p);
