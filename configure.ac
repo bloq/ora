@@ -59,6 +59,7 @@ AC_SUBST(MOX_GCC)
 
 AC_CONFIG_FILES([
 	Makefile
+	lib/Makefile
 	runtime/Makefile
 	src/Makefile
 	tests/Makefile])

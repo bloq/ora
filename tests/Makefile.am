@@ -1,7 +1,7 @@
 
 AM_TESTS_ENVIRONMENT = TOP_SRCDIR=$(top_srcdir)
 
-AM_CXXFLAGS = -std=gnu++0x -I$(top_srcdir)/src
+AM_CXXFLAGS = -std=gnu++0x -I$(top_srcdir)/lib -I$(top_srcdir)/src
 
 TESTS = \
 	run-basic.sh \
