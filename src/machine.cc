@@ -225,4 +225,12 @@ void machine::addMapDescriptor()
 	cpu.asregs.sregs[6] = ar->start;
 }
 
+void machine::finalizeInput()
+{
+	addStackMem();
+	addMapDescriptor();
+
+	cpu.asregs.regs[PC_REGNO] = startAddr;
+}
+
 } // namespace Moxie

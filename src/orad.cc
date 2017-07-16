@@ -569,12 +569,7 @@ void rpc_exec(evhttp_request *req, void *)
 		}
 	}
 
-	if (haveElfProg) {
-		mach.addStackMem();
-		mach.addMapDescriptor();
-	}
-
-	mach.cpu.asregs.regs[PC_REGNO] = mach.startAddr;
+	mach.finalizeInput();
 
 	// execute simulator
 	if (gdbPort)

@@ -113,11 +113,12 @@ public:
 				   sectionName);
 	}
 
-	void addStackMem();
-	void addMapDescriptor();
+	void finalizeInput();
 
 private:
 	bool loadElfProgSection(Elf *e, GElf_Phdr *phdr, void *p);
+	void addStackMem();
+	void addMapDescriptor();
 };
 
 extern void sim_resume (machine& mach, unsigned long long cpu_budget = 0);

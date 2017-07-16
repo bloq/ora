@@ -193,10 +193,7 @@ static void sandboxInit(machine& mach, int argc, char **argv,
 		exit(EXIT_FAILURE);
 	}
 
-	mach.addStackMem();
-	mach.addMapDescriptor();
-
-	mach.cpu.asregs.regs[PC_REGNO] = mach.startAddr;
+	mach.finalizeInput();
 
 	printMemMap(mach);
 }
